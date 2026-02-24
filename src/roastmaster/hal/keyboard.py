@@ -22,6 +22,8 @@ _KEY_TO_EVENT: dict[int, InputEvent] = {
     pygame.K_PLUS: InputEvent.DRUM_UP,
     pygame.K_EQUALS: InputEvent.DRUM_UP,
     pygame.K_MINUS: InputEvent.DRUM_DOWN,
+    pygame.K_h: InputEvent.HEAT_TOGGLE,
+    pygame.K_c: InputEvent.COOL_TOGGLE,
     pygame.K_m: InputEvent.MODE_TOGGLE,
     pygame.K_s: InputEvent.PROFILE_SAVE,
     pygame.K_l: InputEvent.PROFILE_LOAD,

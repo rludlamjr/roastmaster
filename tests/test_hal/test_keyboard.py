@@ -24,6 +24,8 @@ class TestInputEvent:
         "DRUM_DOWN",
         "AIR_UP",
         "AIR_DOWN",
+        "HEAT_TOGGLE",
+        "COOL_TOGGLE",
         "MODE_TOGGLE",
         "PROFILE_SAVE",
         "PROFILE_LOAD",
@@ -132,6 +134,12 @@ class TestMapKeyToEvent:
 
     def test_minus_maps_to_drum_down(self):
         assert map_key_to_event(pygame.K_MINUS) is InputEvent.DRUM_DOWN
+
+    def test_h_maps_to_heat_toggle(self):
+        assert map_key_to_event(pygame.K_h) is InputEvent.HEAT_TOGGLE
+
+    def test_c_maps_to_cool_toggle(self):
+        assert map_key_to_event(pygame.K_c) is InputEvent.COOL_TOGGLE
 
     def test_m_maps_to_mode_toggle(self):
         assert map_key_to_event(pygame.K_m) is InputEvent.MODE_TOGGLE

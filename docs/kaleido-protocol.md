@@ -162,6 +162,7 @@ Source: `strVar()` lines 139-140; `create_msg()` lines 519-521; `set_state()` li
 | `TS` | float | Set PID target / setpoint temperature. Encoded as an integer string (rounded; decimals removed). |
 | `EV` | `2` | Mark turning point event. Value `2` signifies TP. |
 | `HS` | `0` or `1` | Heating switch: `1` = on, `0` = off. |
+| `CS` | `0` or `1` | Cooling switch: `1` = on, `0` = off. |
 
 Notes:
 
@@ -187,6 +188,7 @@ Source: `create_msg()` lines 514-532; `getBTET()` line 95; `markTP()` line 597; 
 | `RC` | int | 0-100 | Current drum speed percentage. |
 | `AH` | int | 0 or 1 | Auto-heat (PID) mode: `1` = active, `0` = off. |
 | `HS` | int | 0 or 1 | Heating switch state: `1` = on, `0` = off. |
+| `CS` | int | 0 or 1 | Cooling switch state: `1` = on, `0` = off. |
 | `SN` | string | — | Device serial number. Returned in response to `CL AR` and during initialisation. |
 | `TU` | string | `C` or `F` | Temperature unit currently in use on the device. |
 

@@ -82,3 +82,17 @@ class RoasterDevice(Protocol):
             speed: Fan speed in the range 0-100 (percent).
         """
         ...
+
+    def set_heating_switch(self, enabled: bool) -> None:
+        """Enable/disable the roaster's heating system (if supported).
+
+        On the Kaleido M1 Lite this maps to the ``HS`` tag (heating switch).
+        """
+        ...
+
+    def set_cooling_switch(self, enabled: bool) -> None:
+        """Enable/disable the roaster's cooling system (if supported).
+
+        On the Kaleido M1 Lite this maps to the ``CS`` tag (cooling switch).
+        """
+        ...

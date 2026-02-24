@@ -84,6 +84,8 @@ class TestRoasterDeviceProtocol:
         assert callable(device.set_heater)
         assert callable(device.set_drum)
         assert callable(device.set_fan)
+        assert callable(device.set_heating_switch)
+        assert callable(device.set_cooling_switch)
 
     def test_protocol_annotation_compatible(self):
         """A SimulatedRoasterDevice can be passed where RoasterDevice is expected."""

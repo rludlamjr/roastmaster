@@ -65,6 +65,10 @@ class TestCreateMsg:
         assert create_msg("RC", "60") == "{[RC 60]}\n"
         assert create_msg("AH", "1") == "{[AH 1]}\n"
         assert create_msg("AH", "0") == "{[AH 0]}\n"
+        assert create_msg("HS", "1") == "{[HS 1]}\n"
+        assert create_msg("HS", "0") == "{[HS 0]}\n"
+        assert create_msg("CS", "1") == "{[CS 1]}\n"
+        assert create_msg("CS", "0") == "{[CS 0]}\n"
 
     def test_int_value_with_decimal(self):
         # intVar tags preserve up to one decimal (Artisan convention)
@@ -234,6 +238,16 @@ class TestKaleidoNotConnected:
         with pytest.raises(RuntimeError, match="not connected"):
             dev.set_fan(50)
 
+    def test_set_heating_switch_raises(self):
+        dev = KaleidoDevice(port="/dev/null")
+        with pytest.raises(RuntimeError, match="not connected"):
+            dev.set_heating_switch(True)
+
+    def test_set_cooling_switch_raises(self):
+        dev = KaleidoDevice(port="/dev/null")
+        with pytest.raises(RuntimeError, match="not connected"):
+            dev.set_cooling_switch(True)
+
 
 # =========================================================================
 # Validation
@@ -370,6 +384,10 @@ class FakeSerial:
             self._enqueue(f"{{5,FC:{value}}}")
         elif tag == "RC":
             self._enqueue(f"{{5,RC:{value}}}")
+        elif tag == "HS":
+            self._enqueue(f"{{5,HS:{value}}}")
+        elif tag == "CS":
+            self._enqueue(f"{{5,CS:{value}}}")
         elif tag == "CL":
             self._enqueue("{5,SN:K12345}")
 
@@ -415,5 +433,20 @@ class TestArtisanStyleComm:
 
         res = dev._send_request("HP", "80", var="HP", timeout=0.2, single_request=True)
         assert res is None
+
+        dev.disconnect()
+
+    def test_switch_controls_use_request_reply(self):
+        fake = FakeSerial()
+        dev = KaleidoDevice(port="FAKE", serial_factory=lambda **kw: fake)  # type: ignore[arg-type]
+        dev.connect()
+
+        dev.set_heating_switch(True)
+        dev.set_cooling_switch(True)
+
+        hs_writes = [w for w in fake.writes if w.strip().startswith("{[HS ")]
+        cs_writes = [w for w in fake.writes if w.strip().startswith("{[CS ")]
+        assert hs_writes[-1].strip() == "{[HS 1]}"
+        assert cs_writes[-1].strip() == "{[CS 1]}"
 
         dev.disconnect()

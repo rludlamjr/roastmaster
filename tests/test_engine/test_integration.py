@@ -92,7 +92,7 @@ class TestHandleInput:
         session.fsm.elapsed = 1.0
         msg = _handle_input(InputEvent.BURNER_UP, session, dev, hal)
         assert session.fsm.phase == RoastPhase.PREHEAT
-        assert msg == "PREHEAT"
+        assert msg == "PREHEAT (HEAT OFF)"
 
     def test_burner_up_noop_in_preheat(self, session, device, hal):
         dev, _ = device

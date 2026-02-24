@@ -70,6 +70,12 @@ class ReadOnlyDevice:
     def set_fan(self, speed: int) -> None:
         pass  # read-only
 
+    def set_heating_switch(self, enabled: bool) -> None:
+        pass  # read-only
+
+    def set_cooling_switch(self, enabled: bool) -> None:
+        pass  # read-only
+
 # ---------------------------------------------------------------------------
 # Roast session: bundles all engine state for a single roast
 # ---------------------------------------------------------------------------
@@ -84,6 +90,8 @@ class RoastSession:
         self.ror = RoRCalculator()
         self.pid = PIDController()
         self.auto_mode = False
+        self.heat_enabled = False
+        self.cooling_enabled = False
 
         # Latest readings (updated each sample)
         self.bt: float | None = None
@@ -99,6 +107,8 @@ class RoastSession:
         self.ror.reset()
         self.pid.reset()
         self.auto_mode = False
+        self.heat_enabled = False
+        self.cooling_enabled = False
         self.bt = None
         self.et = None
         self.current_ror = None
@@ -124,7 +134,9 @@ class RoastSession:
 # Input handling
 # ---------------------------------------------------------------------------
 
-_DEFAULT_MESSAGE = "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  Q:QUIT  F12:DEBUG"
+_DEFAULT_MESSAGE = (
+    "H:HEAT  C:COOL  F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  Q:QUIT  F12:DEBUG"
+)
 
 
 def _handle_input(
@@ -136,6 +148,69 @@ def _handle_input(
     """Process a single HAL input event. Returns a status message if relevant."""
     phase = session.fsm.phase
     elapsed = session.fsm.elapsed
+
+    if event == InputEvent.HEAT_TOGGLE:
+        desired = not session.heat_enabled
+        if desired:
+            # Heating and cooling are mutually exclusive on the Kaleido.
+            if session.cooling_enabled:
+                try:
+                    device.set_cooling_switch(False)
+                except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                    logger.warning("Cooling switch error: %s", exc)
+                    return "COOL OFF FAILED"
+                session.cooling_enabled = False
+
+            try:
+                device.set_heating_switch(True)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Heating switch error: %s", exc)
+                return "HEAT ON FAILED"
+            session.heat_enabled = True
+            return "HEAT ON"
+
+        # Turning heat OFF is always safe to reflect locally immediately; we also
+        # try to command the roaster to stop heating.
+        session.heat_enabled = False
+        try:
+            device.set_heater(0)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("Heater off error: %s", exc)
+        try:
+            device.set_heating_switch(False)
+        except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+            logger.warning("Heating switch error: %s", exc)
+            return "HEAT OFF FAILED"
+        return "HEAT OFF"
+
+    if event == InputEvent.COOL_TOGGLE:
+        desired = not session.cooling_enabled
+        if desired:
+            # Gate heating off immediately regardless of device response.
+            session.cooling_enabled = True
+            session.heat_enabled = False
+            try:
+                device.set_heater(0)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("Heater off error: %s", exc)
+            try:
+                device.set_heating_switch(False)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Heating switch error: %s", exc)
+            try:
+                device.set_cooling_switch(True)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Cooling switch error: %s", exc)
+                return "COOL ON FAILED"
+            return "COOL ON"
+
+        try:
+            device.set_cooling_switch(False)
+        except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+            logger.warning("Cooling switch error: %s", exc)
+            return "COOL OFF FAILED"
+        session.cooling_enabled = False
+        return "COOL OFF"
 
     if event == InputEvent.CHARGE:
         if phase == RoastPhase.IDLE:
@@ -166,7 +241,20 @@ def _handle_input(
             session.fsm.start_cooling(elapsed)
             if session.bt is not None:
                 session.events.mark_event(EventType.DROP, elapsed, session.bt)
-            device.set_heater(0)
+            try:
+                device.set_heater(0)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("Heater off error: %s", exc)
+            session.heat_enabled = False
+            session.cooling_enabled = True
+            try:
+                device.set_heating_switch(False)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Heating switch error: %s", exc)
+            try:
+                device.set_cooling_switch(True)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Cooling switch error: %s", exc)
             return "DROP"
         return None
 
@@ -190,7 +278,7 @@ def _handle_input(
     if event in (InputEvent.BURNER_UP, InputEvent.BURNER_DOWN):
         if phase == RoastPhase.IDLE:
             session.fsm.start_preheat(elapsed)
-            return "PREHEAT"
+            return "PREHEAT" if session.heat_enabled else "PREHEAT (HEAT OFF)"
 
     return None
 
@@ -232,7 +320,14 @@ def _sample(
     # PID auto-control: adjust heater based on RoR target
     if session.auto_mode and session.pid.active and session.current_ror is not None:
         pid_output = session.pid.compute(session.current_ror, 1.0)
-        device.set_heater(int(pid_output))
+        if (
+            session.heat_enabled
+            and not session.cooling_enabled
+            and session.fsm.phase not in (RoastPhase.COOLING, RoastPhase.DONE)
+        ):
+            device.set_heater(int(pid_output))
+        else:
+            device.set_heater(0)
 
     # Record sample for profile saving
     session.samples.append(
@@ -315,7 +410,14 @@ def _safe_sample(
     if session.auto_mode and session.pid.active and session.current_ror is not None:
         pid_output = session.pid.compute(session.current_ror, 1.0)
         try:
-            device.set_heater(int(pid_output))
+            if (
+                session.heat_enabled
+                and not session.cooling_enabled
+                and session.fsm.phase not in (RoastPhase.COOLING, RoastPhase.DONE)
+            ):
+                device.set_heater(int(pid_output))
+            else:
+                device.set_heater(0)
         except (ConnectionError, OSError, RuntimeError):
             pass  # best-effort control
 
@@ -370,6 +472,8 @@ def _build_render_data(
         "burner": float(hal.state.burner),
         "drum": float(hal.state.drum),
         "air": float(hal.state.air),
+        "heat_enabled": session.heat_enabled,
+        "cooling_enabled": session.cooling_enabled,
         "message": status,
     }
 
@@ -648,10 +752,15 @@ def main(argv: list[str] | None = None) -> None:
             # 3. Send current control state to device
             state = hal.state
             try:
-                if session.fsm.phase in (RoastPhase.COOLING, RoastPhase.DONE):
+                if (
+                    session.fsm.phase in (RoastPhase.COOLING, RoastPhase.DONE)
+                    or session.cooling_enabled
+                ):
                     device.set_heater(0)
                 elif not session.auto_mode:
-                    device.set_heater(state.burner)
+                    device.set_heater(state.burner if session.heat_enabled else 0)
+                elif not session.heat_enabled:
+                    device.set_heater(0)
                 device.set_drum(state.drum)
                 device.set_fan(state.air)
             except (ConnectionError, OSError, RuntimeError) as exc:
@@ -683,6 +792,8 @@ def main(argv: list[str] | None = None) -> None:
                     f"DEV: {device_label}",
                     f"CONN: {conn}",
                     f"MODE: {'TEST' if test_mode else ('AUTO' if session.auto_mode else 'MANUAL')}",
+                    f"HEAT: {'ON' if session.heat_enabled else 'OFF'}",
+                    f"COOL: {'ON' if session.cooling_enabled else 'OFF'}",
                     f"ERRS: {error_count}",
                     f"BT: {session.bt:.1f}F" if session.bt is not None else "BT: --",
                     f"ET: {session.et:.1f}F" if session.et is not None else "ET: --",

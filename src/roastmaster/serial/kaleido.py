@@ -36,6 +36,7 @@ Key tags
  AH        ↔     Auto-heat PID: 0 = off, 1 = on
  TS        ↔     Target/setpoint temperature (°C or °F)
  HS        ↔     Heating switch: 0 = off, 1 = on
+ CS        ↔     Cooling switch: 0 = off, 1 = on
  BT        ←     Bean temperature
  ET        ←     Environment temperature
  AT        ←     Ambient temperature
@@ -207,6 +208,7 @@ _PING_TIMEOUT = 1.2  # timeout for a single command/response exchange
 _PING_RETRY_DELAY = 1.0  # delay between ping retries
 _READ_TIMEOUT = 5.0  # seconds (used for offline heuristics/logging)
 _SEND_TIMEOUT = 0.6  # request/await timeout (Artisan-style)
+_BUTTON_TIMEOUT = 1.2  # button/toggle request timeout (Artisan-style)
 
 # Reader/writer thread management
 _JOIN_TIMEOUT = 1.0
@@ -418,6 +420,22 @@ class KaleidoDevice:
         _validate_percent("speed", speed)
         self._require_connected()
         self._send_deduped("FC", create_msg("FC", str(speed)))
+
+    def set_heating_switch(self, enabled: bool) -> None:
+        """Enable/disable heating (HS: 0/1)."""
+        self._require_connected()
+        value = "1" if enabled else "0"
+        res = self._send_request("HS", value, timeout=_BUTTON_TIMEOUT)
+        if res is None:
+            raise TimeoutError("Timed out waiting for Kaleido HS reply")
+
+    def set_cooling_switch(self, enabled: bool) -> None:
+        """Enable/disable cooling (CS: 0/1)."""
+        self._require_connected()
+        value = "1" if enabled else "0"
+        res = self._send_request("CS", value, timeout=_BUTTON_TIMEOUT)
+        if res is None:
+            raise TimeoutError("Timed out waiting for Kaleido CS reply")
 
     # ------------------------------------------------------------------
     # Internal helpers

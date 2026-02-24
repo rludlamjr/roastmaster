@@ -14,6 +14,8 @@ Expected data dict keys
     drum        : float         – Drum speed % (0-100)
     air         : float         – Air % (0-100)
     message     : str           – Optional status message
+    heat_enabled : bool        – Heating enabled (device toggle)
+    cooling_enabled : bool     – Cooling enabled (device toggle)
 
 Optional debug keys
 -------------------
@@ -231,12 +233,16 @@ class Renderer:
         # Info panel
         connected = data.get("connected")
         device_label = data.get("device_label")
+        heat_enabled = data.get("heat_enabled")
+        cooling_enabled = data.get("cooling_enabled")
         self._draw_info_panel(
             surface,
             phase,
             elapsed,
             connected=(bool(connected) if connected is not None else None),
             device_label=(str(device_label) if device_label is not None else None),
+            heat_enabled=(bool(heat_enabled) if heat_enabled is not None else None),
+            cooling_enabled=(bool(cooling_enabled) if cooling_enabled is not None else None),
         )
 
         # Status bar
@@ -296,6 +302,8 @@ class Renderer:
         *,
         connected: bool | None = None,
         device_label: str | None = None,
+        heat_enabled: bool | None = None,
+        cooling_enabled: bool | None = None,
     ) -> None:
         """Draw the small info panel to the right of the control bars."""
         r = self._info_rect
@@ -311,10 +319,25 @@ class Renderer:
         dev = device_label or ""
         conn_line = f"{dev} {conn}".strip()
 
+        if heat_enabled is True:
+            heat = "ON"
+        elif heat_enabled is False:
+            heat = "OFF"
+        else:
+            heat = "?"
+        if cooling_enabled is True:
+            cool = "ON"
+        elif cooling_enabled is False:
+            cool = "OFF"
+        else:
+            cool = "?"
+        switches_line = f"H:{heat} C:{cool}"
+
         lines = [
             phase,
             f"{int(elapsed) // 60:02d}:{int(elapsed) % 60:02d}",
             conn_line,
+            switches_line,
         ]
         pad = 4
         max_w = r.width - pad * 2
