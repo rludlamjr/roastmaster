@@ -13,8 +13,10 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+import os
 import signal
 import sys
+from pathlib import Path
 
 import pygame
 
@@ -122,7 +124,7 @@ class RoastSession:
 # Input handling
 # ---------------------------------------------------------------------------
 
-_DEFAULT_MESSAGE = "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  Q:QUIT"
+_DEFAULT_MESSAGE = "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  Q:QUIT  F12:DEBUG"
 
 
 def _handle_input(
@@ -449,7 +451,62 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="List available serial ports and exit",
     )
+    parser.add_argument(
+        "--serial-log",
+        action="store_true",
+        help="Log raw Kaleido RX/TX traffic (very verbose; use for debugging)",
+    )
+    parser.add_argument(
+        "--log-file",
+        default="logs/roastmaster.log",
+        help="Write logs to this file (default: logs/roastmaster.log). "
+        "Pass an empty string to disable file logging.",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (default: INFO)",
+    )
     return parser.parse_args(argv)
+
+
+def _configure_logging(*, log_file: str, level: str) -> Path | None:
+    """Configure console + (optional) file logging.
+
+    Returns the resolved log path if file logging is enabled.
+    """
+    import logging.handlers
+
+    root_level = getattr(logging, level.upper(), logging.INFO)
+    fmt = logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    handlers: list[logging.Handler] = []
+
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    console.setLevel(root_level)
+    handlers.append(console)
+
+    log_path: Path | None = None
+    if log_file:
+        log_path = Path(os.path.expanduser(log_file)).resolve()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_path,
+            maxBytes=2_000_000,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(fmt)
+        file_handler.setLevel(logging.DEBUG)
+        handlers.append(file_handler)
+
+    logging.basicConfig(level=logging.DEBUG, handlers=handlers, force=True)
+    return log_path
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -466,6 +523,10 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"{path:<30} {desc}")  # noqa: T201
         return
 
+    log_path = _configure_logging(log_file=str(args.log_file).strip(), level=args.log_level)
+    if log_path is not None:
+        logger.info("Logging to %s", log_path)
+
     # Determine which device to use
     serial_port: str | None = args.device
     if not serial_port and not args.sim:
@@ -480,10 +541,17 @@ def main(argv: list[str] | None = None) -> None:
     hal = KeyboardInput()
 
     device: RoasterDevice
+    device_label = "SIM"
     if serial_port:
         from roastmaster.serial.kaleido import KaleidoDevice
 
         raw_device: RoasterDevice = KaleidoDevice(port=serial_port, baud_rate=args.baud)
+        if args.serial_log and hasattr(raw_device, "set_logging"):
+            try:
+                raw_device.set_logging(True)  # type: ignore[attr-defined]
+                logger.info("Serial traffic logging enabled")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to enable serial traffic logging: %s", exc)
         if args.test:
             device = ReadOnlyDevice(raw_device)
             logger.info("TEST MODE (read-only) on %s", serial_port)
@@ -491,6 +559,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             device = raw_device
             logger.info("Using Kaleido device on %s", serial_port)
+        device_label = Path(serial_port).name or serial_port
     else:
         device = SimulatedRoasterDevice()
         logger.info("Using simulated device")
@@ -506,6 +575,7 @@ def main(argv: list[str] | None = None) -> None:
     message = ""
     message_expire: float = 0.0
     error_count = 0
+    debug_overlay = False
 
     # Clean shutdown on Ctrl-C
     running = True
@@ -528,6 +598,11 @@ def main(argv: list[str] | None = None) -> None:
                 if event == InputEvent.QUIT:
                     running = False
                     break
+                if event == InputEvent.HELP_TOGGLE:
+                    debug_overlay = not debug_overlay
+                    message = "DEBUG ON" if debug_overlay else "DEBUG OFF"
+                    message_expire = session.fsm.elapsed + 2.0
+                    continue
 
                 # Profile browser intercepts input while visible
                 if renderer.browser_visible:
@@ -599,6 +674,24 @@ def main(argv: list[str] | None = None) -> None:
 
             # 6. Render
             data = _build_render_data(session, hal, message, test_mode=test_mode)
+            data["connected"] = bool(getattr(device, "connected", False))
+            data["device_label"] = device_label
+            data["debug_visible"] = debug_overlay
+            if debug_overlay:
+                conn = "ONLINE" if data["connected"] else "OFFLINE"
+                lines = [
+                    f"DEV: {device_label}",
+                    f"CONN: {conn}",
+                    f"MODE: {'TEST' if test_mode else ('AUTO' if session.auto_mode else 'MANUAL')}",
+                    f"ERRS: {error_count}",
+                    f"BT: {session.bt:.1f}F" if session.bt is not None else "BT: --",
+                    f"ET: {session.et:.1f}F" if session.et is not None else "ET: --",
+                ]
+                if log_path is not None:
+                    lines.append(f"LOG: {log_path.name}")
+                if serial_port and args.serial_log:
+                    lines.append("SERIAL: RAW LOG ON")
+                data["debug_lines"] = lines
             renderer.render(data)
             pygame.display.flip()
             clock.tick(FPS)

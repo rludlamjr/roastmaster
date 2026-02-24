@@ -14,5 +14,9 @@ wheels/
 .ruff_cache/
 .claude/
 
+# Logs
+logs/
+*.log
+
 # Reference repos (cloned for protocol study, not part of our source)
 reference/
