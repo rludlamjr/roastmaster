@@ -9,6 +9,10 @@ Protocol reference: docs/kaleido-protocol.md
 
 from __future__ import annotations
 
+import queue
+import threading
+import time
+
 import pytest
 
 from roastmaster.serial.kaleido import (
@@ -272,3 +276,144 @@ class TestValidation:
             _validate_percent("test", -1)
         with pytest.raises(ValueError):
             _validate_percent("test", 101)
+
+
+# =========================================================================
+# Artisan-style comm behavior (threaded reader + request/await)
+# =========================================================================
+
+
+class FakeSerial:
+    """A minimal fake serial port for exercising KaleidoDevice I/O logic.
+
+    It responds to writes by enqueueing appropriate Kaleido protocol reply lines.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.timeout = float(kwargs.get("timeout", 0.4))
+        self.is_open = True
+        self._rx: queue.Queue[bytes] = queue.Queue()
+        self.writes: list[str] = []
+        self._lock = threading.Lock()
+
+        # Behavior toggles (tests can override after construction)
+        self.delay_rd_s: float = 0.0
+        self.hp_single_var_reply: bool = True
+
+    def write(self, data: bytes) -> int:
+        text = data.decode("utf-8", errors="replace")
+        with self._lock:
+            self.writes.append(text)
+        self._handle_write(text)
+        return len(data)
+
+    def flush(self) -> None:
+        return None
+
+    def close(self) -> None:
+        self.is_open = False
+
+    def readline(self) -> bytes:
+        if not self.is_open:
+            return b""
+        try:
+            return self._rx.get(timeout=self.timeout)
+        except queue.Empty:
+            return b""
+
+    # ------------------------------
+    # Protocol simulation
+    # ------------------------------
+
+    def _enqueue(self, line: str, *, delay_s: float = 0.0) -> None:
+        payload = (line.strip() + "\n").encode("utf-8")
+        if delay_s <= 0:
+            self._rx.put(payload)
+            return
+
+        def _delayed_put() -> None:
+            self._rx.put(payload)
+
+        threading.Timer(delay_s, _delayed_put).start()
+
+    def _handle_write(self, msg: str) -> None:
+        stripped = msg.strip()
+        if not stripped.startswith("{[") or not stripped.endswith("]}"):
+            return
+
+        inner = stripped[2:-2]
+        if " " in inner:
+            tag, value = inner.split(" ", 1)
+        else:
+            tag, value = inner, None
+
+        # Minimal handshake + polling responses
+        if tag == "PI":
+            self._enqueue("{5}")
+        elif tag == "TU":
+            self._enqueue(f"{{5,TU:{value}}}")
+        elif tag == "SC":
+            self._enqueue("{5,SC:AR}")
+        elif tag == "RD":
+            # Broadcast BT/ET + control echo.
+            self._enqueue(
+                "{5,BT:200.5,ET:250.3,AT:25.0,TS:185.0,HP:80,FC:40,RC:60,AH:1,HS:1}",
+                delay_s=self.delay_rd_s,
+            )
+        elif tag == "HP":
+            if self.hp_single_var_reply:
+                self._enqueue(f"{{5,HP:{value}}}")
+            else:
+                # Multi-var reply should NOT satisfy single-var awaits ("!HP").
+                self._enqueue(f"{{5,HP:{value},BT:199.9}}")
+        elif tag == "FC":
+            self._enqueue(f"{{5,FC:{value}}}")
+        elif tag == "RC":
+            self._enqueue(f"{{5,RC:{value}}}")
+        elif tag == "CL":
+            self._enqueue("{5,SN:K12345}")
+
+
+class TestArtisanStyleComm:
+    def test_read_temperatures_survives_interleaved_control_reply(self):
+        """A control reply arriving before RD must not break BT/ET reads."""
+
+        fake = FakeSerial()
+        fake.delay_rd_s = 0.05  # make RD reply arrive after HP reply
+
+        dev = KaleidoDevice(port="FAKE", serial_factory=lambda **kw: fake)  # type: ignore[arg-type]
+        dev.connect()
+        dev.set_heater(80)
+
+        reading = dev.read_temperatures()
+        assert reading.bean_temp == pytest.approx(200.5)
+        assert reading.env_temp == pytest.approx(250.3)
+
+        dev.disconnect()
+
+    def test_control_deduplication_avoids_spam(self):
+        fake = FakeSerial()
+        dev = KaleidoDevice(port="FAKE", serial_factory=lambda **kw: fake)  # type: ignore[arg-type]
+        dev.connect()
+
+        for _ in range(10):
+            dev.set_fan(40)
+
+        # Give the writer thread a moment to flush.
+        time.sleep(0.05)
+
+        fc_writes = [w for w in fake.writes if w.strip().startswith("{[FC ")]
+        assert len(fc_writes) == 1
+
+        dev.disconnect()
+
+    def test_single_request_waits_for_single_var_reply(self):
+        fake = FakeSerial()
+        fake.hp_single_var_reply = False  # respond with multi-var
+        dev = KaleidoDevice(port="FAKE", serial_factory=lambda **kw: fake)  # type: ignore[arg-type]
+        dev.connect()
+
+        res = dev._send_request("HP", "80", var="HP", timeout=0.2, single_request=True)
+        assert res is None
+
+        dev.disconnect()

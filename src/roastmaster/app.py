@@ -280,7 +280,7 @@ def _safe_sample(
     """
     try:
         reading = device.read_temperatures()
-    except (ConnectionError, TimeoutError, OSError) as exc:
+    except (ConnectionError, TimeoutError, OSError, RuntimeError) as exc:
         error_count += 1
         logger.warning("Read error (%d): %s", error_count, exc)
         if error_count >= _MAX_CONSECUTIVE_ERRORS:
@@ -314,7 +314,7 @@ def _safe_sample(
         pid_output = session.pid.compute(session.current_ror, 1.0)
         try:
             device.set_heater(int(pid_output))
-        except (ConnectionError, OSError):
+        except (ConnectionError, OSError, RuntimeError):
             pass  # best-effort control
 
     session.samples.append(
@@ -579,7 +579,7 @@ def main(argv: list[str] | None = None) -> None:
                     device.set_heater(state.burner)
                 device.set_drum(state.drum)
                 device.set_fan(state.air)
-            except (ConnectionError, OSError) as exc:
+            except (ConnectionError, OSError, RuntimeError) as exc:
                 logger.warning("Control write error: %s", exc)
 
             # 4. Sample temperatures at ~1 Hz (with error handling)
