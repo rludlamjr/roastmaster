@@ -481,6 +481,15 @@ class KaleidoDevice:
         except Exception:  # noqa: BLE001
             pass  # best-effort
 
+        # Step 4 (best-effort): disable Kaleido PID / auto-heat.
+        #
+        # Artisan exposes this as "PID OFF" (AH=0). Keeping the roaster in
+        # manual mode avoids conflicts with RoastMaster's direct HP control.
+        try:
+            self._send_deduped("AH", create_msg("AH", "0"))
+        except Exception:  # noqa: BLE001
+            pass
+
     def _require_connected(self) -> None:
         if not self.connected:
             raise RuntimeError(

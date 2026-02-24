@@ -161,13 +161,20 @@ def _handle_input(
                     return "COOL OFF FAILED"
                 session.cooling_enabled = False
 
+            heat_ack = True
             try:
                 device.set_heating_switch(True)
-            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+            except (ConnectionError, OSError, RuntimeError) as exc:
                 logger.warning("Heating switch error: %s", exc)
                 return "HEAT ON FAILED"
+            except TimeoutError as exc:
+                # Some firmware versions may not acknowledge toggle commands
+                # with a single-var reply. The command was still transmitted;
+                # proceed and let the operator verify actual heat behavior.
+                logger.warning("Heating switch timeout: %s", exc)
+                heat_ack = False
             session.heat_enabled = True
-            return "HEAT ON"
+            return "HEAT ON" if heat_ack else "HEAT ON (NO ACK)"
 
         # Turning heat OFF is always safe to reflect locally immediately; we also
         # try to command the roaster to stop heating.
@@ -176,12 +183,16 @@ def _handle_input(
             device.set_heater(0)
         except (ConnectionError, OSError, RuntimeError) as exc:
             logger.warning("Heater off error: %s", exc)
+        heat_ack = True
         try:
             device.set_heating_switch(False)
-        except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+        except (ConnectionError, OSError, RuntimeError) as exc:
             logger.warning("Heating switch error: %s", exc)
             return "HEAT OFF FAILED"
-        return "HEAT OFF"
+        except TimeoutError as exc:
+            logger.warning("Heating switch timeout: %s", exc)
+            heat_ack = False
+        return "HEAT OFF" if heat_ack else "HEAT OFF (NO ACK)"
 
     if event == InputEvent.COOL_TOGGLE:
         desired = not session.cooling_enabled
@@ -798,6 +809,16 @@ def main(argv: list[str] | None = None) -> None:
                     f"BT: {session.bt:.1f}F" if session.bt is not None else "BT: --",
                     f"ET: {session.et:.1f}F" if session.et is not None else "ET: --",
                 ]
+                if hasattr(device, "get_state"):
+                    try:
+                        hs = device.get_state("HS")  # type: ignore[attr-defined]
+                        cs = device.get_state("CS")  # type: ignore[attr-defined]
+                        ah = device.get_state("AH")  # type: ignore[attr-defined]
+                        hp = device.get_state("HP")  # type: ignore[attr-defined]
+                        ts = device.get_state("TS")  # type: ignore[attr-defined]
+                        lines.append(f"RPT: HS={hs} CS={cs} AH={ah} HP={hp} TS={ts}")
+                    except Exception as exc:  # noqa: BLE001
+                        lines.append(f"RPT: <error {exc}>")
                 if log_path is not None:
                     lines.append(f"LOG: {log_path.name}")
                 if serial_port and args.serial_log:
