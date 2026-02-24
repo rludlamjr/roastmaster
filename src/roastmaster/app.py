@@ -172,6 +172,14 @@ def _handle_input(
                 return "COOL OFF FAILED"
             session.cooling_enabled = False
 
+            # Force manual heat mode (roaster PID OFF) to match Artisan-style
+            # manual HP control. Some Kaleido states will accept HS/HP writes but
+            # not actually enable the heater until PID is disabled.
+            try:
+                device.set_pid_mode(False)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("PID off error: %s", exc)
+
             heat_ack = True
             try:
                 device.set_heating_switch(True)
