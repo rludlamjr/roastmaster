@@ -1,0 +1,33 @@
+[project]
+name = "roastmaster"
+version = "0.1.0"
+description = "Retro coffee roasting control system for Raspberry Pi with CRT display"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pygame>=2.5.0",
+    "pyserial>=3.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+roastmaster = "roastmaster.app:main"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
