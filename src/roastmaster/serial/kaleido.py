@@ -437,6 +437,25 @@ class KaleidoDevice:
         if res is None:
             raise TimeoutError("Timed out waiting for Kaleido CS reply")
 
+    def set_pid_mode(self, enabled: bool) -> None:
+        """Enable/disable Kaleido PID / auto-heat (AH: 0/1)."""
+        self._require_connected()
+        value = "1" if enabled else "0"
+        self._send_deduped("AH", create_msg("AH", value))
+
+    def set_setpoint(self, temp: float) -> None:
+        """Set Kaleido target temperature / setpoint (TS)."""
+        self._require_connected()
+        self._send_deduped("TS", create_msg("TS", str(temp)))
+
+    def mark_event(self, code: int) -> None:
+        """Send a Kaleido event marker (EV).
+
+        Artisan uses EV codes to signal roast events like CHARGE/FC/SC/DROP/COOL.
+        """
+        self._require_connected()
+        self._send(create_msg("EV", str(code)))
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -481,12 +500,13 @@ class KaleidoDevice:
         except Exception:  # noqa: BLE001
             pass  # best-effort
 
-        # Step 4 (best-effort): disable Kaleido PID / auto-heat.
+        # Step 4 (best-effort): ensure heating/cooling are off on connect.
         #
-        # Artisan exposes this as "PID OFF" (AH=0). Keeping the roaster in
-        # manual mode avoids conflicts with RoastMaster's direct HP control.
+        # This is a safety precaution to avoid accidentally inheriting a
+        # previous session's state (e.g. heater left ON by another controller).
         try:
-            self._send_deduped("AH", create_msg("AH", "0"))
+            self._send_deduped("HS", create_msg("HS", "0"))
+            self._send_deduped("CS", create_msg("CS", "0"))
         except Exception:  # noqa: BLE001
             pass
 

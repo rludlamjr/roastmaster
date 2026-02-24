@@ -26,6 +26,10 @@ class TestInputEvent:
         "AIR_DOWN",
         "HEAT_TOGGLE",
         "COOL_TOGGLE",
+        "ROASTER_PID_TOGGLE",
+        "SETPOINT_UP",
+        "SETPOINT_DOWN",
+        "SETPOINT_PREHEAT",
         "MODE_TOGGLE",
         "PROFILE_SAVE",
         "PROFILE_LOAD",
@@ -143,6 +147,18 @@ class TestMapKeyToEvent:
 
     def test_m_maps_to_mode_toggle(self):
         assert map_key_to_event(pygame.K_m) is InputEvent.MODE_TOGGLE
+
+    def test_p_maps_to_roaster_pid_toggle(self):
+        assert map_key_to_event(pygame.K_p) is InputEvent.ROASTER_PID_TOGGLE
+
+    def test_left_bracket_maps_to_setpoint_down(self):
+        assert map_key_to_event(pygame.K_LEFTBRACKET) is InputEvent.SETPOINT_DOWN
+
+    def test_right_bracket_maps_to_setpoint_up(self):
+        assert map_key_to_event(pygame.K_RIGHTBRACKET) is InputEvent.SETPOINT_UP
+
+    def test_t_maps_to_setpoint_preheat(self):
+        assert map_key_to_event(pygame.K_t) is InputEvent.SETPOINT_PREHEAT
 
     def test_s_maps_to_profile_save(self):
         assert map_key_to_event(pygame.K_s) is InputEvent.PROFILE_SAVE

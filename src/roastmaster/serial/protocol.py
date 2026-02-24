@@ -96,3 +96,24 @@ class RoasterDevice(Protocol):
         On the Kaleido M1 Lite this maps to the ``CS`` tag (cooling switch).
         """
         ...
+
+    def set_pid_mode(self, enabled: bool) -> None:
+        """Enable/disable the roaster's internal PID / auto-heat mode (if supported).
+
+        On the Kaleido M1 Lite this maps to the ``AH`` tag (auto heating).
+        """
+        ...
+
+    def set_setpoint(self, temp: float) -> None:
+        """Set the roaster's temperature setpoint / SV (if supported).
+
+        On the Kaleido M1 Lite this maps to the ``TS`` tag (target temperature).
+        """
+        ...
+
+    def mark_event(self, code: int) -> None:
+        """Send a roaster-side event marker (if supported).
+
+        On the Kaleido M1 Lite this maps to the ``EV`` tag.
+        """
+        ...
