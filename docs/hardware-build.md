@@ -39,6 +39,26 @@ and communicates with the Kaleido M1 Lite roaster over USB serial.
 
 ---
 
+## Safety (Read First)
+
+This panel is a convenience controller, **not** a safety system. Keep the
+Kaleido’s own controls accessible and be ready to stop a roast from the roaster
+itself if anything behaves unexpectedly.
+
+- **Safe defaults on connect:** RoastMaster should connect with **heat and
+  cooling commanded OFF** (`HS=0`, `CS=0`) and **heater power at 0** (`HP=0`)
+  until the operator explicitly enables heat.
+- **Maintained toggle switches:** Treat HEAT/COOL/MODE/POWER as *requests* and
+  act only on **state changes** (edge-detect). On startup, ignore any toggle
+  that is already ON until it has been turned OFF at least once (“arm”
+  behavior). This prevents “surprise heat” after a reboot.
+- **Emergency stop:** If you want a true hard stop, add a separate physical
+  E‑STOP that removes power from the **roaster**, not just the Pi.
+- **Don’t hard-cut Pi power:** Abruptly removing 5V can corrupt the microSD.
+  Use an orderly shutdown or a dedicated soft-power board/HAT.
+
+---
+
 ## 1. Core Platform
 
 | Part | Spec | Qty | Est. Price | Notes |
@@ -57,12 +77,13 @@ The RoastMaster UI is a 640x480 pygame application. Options:
 | Part | Spec | Qty | Est. Price | Notes |
 |------|------|-----|-----------|-------|
 | **Option A:** 7" HDMI LCD | 800x480 or 1024x600, HDMI input | 1 | $35-55 | Easiest option. Mount in panel |
-| **Option B:** Composite CRT | Any small CRT with RCA/composite in | 1 | $0-30 | Ultimate retro look. RPi outputs composite via 3.5mm jack |
+| **Option B:** Composite CRT | Any small CRT with RCA/composite in | 1 | $0-30 | Retro look. Pi 4/3/Zero can output composite via TRRS; Pi 5 needs HDMI→composite |
 | HDMI cable (short) | 30cm-50cm | 1 | $5 | For panel-mount display |
 
 **Recommendation:** A 7" HDMI IPS display is the practical choice. If you find
-a small composite CRT (old security monitor, etc.), the RPi's composite output
-at 640x480 would give an authentic retro feel.
+a small composite CRT (old security monitor, etc.), composite at ~640x480 can
+give an authentic retro feel (easy on Pi 4/3/Zero; Pi 5 typically requires an
+HDMI→composite adapter).
 
 ---
 
@@ -70,26 +91,30 @@ at 640x480 would give an authentic retro feel.
 
 ### 3a. Toggle Switches (4)
 
-Standard panel-mount toggle switches. ON/OFF (SPST) for power; ON/OFF (SPST)
-for the rest, read via GPIO.
+Standard panel-mount toggle switches. All switches are read via GPIO; the
+POWER switch can optionally also be used with a dedicated soft-power board.
 
 | Part | Spec | Qty | Est. Price | Notes |
 |------|------|-----|-----------|-------|
-| Toggle switch — POWER | SPST ON/OFF, panel-mount, 6A rated | 1 | $3 | Inline with 5V power to Pi. NOT a GPIO switch (see shutdown notes below) |
+| Toggle switch — POWER | SPST ON/OFF, panel-mount | 1 | $3 | GPIO input used as a shutdown request / soft-power signal (recommended); don’t hard-cut Pi 5V |
 | Toggle switch — HEATER | SPST ON/OFF, panel-mount | 1 | $2 | GPIO input. Sends HS command to Kaleido |
 | Toggle switch — COOLING | SPST ON/OFF, panel-mount | 1 | $2 | GPIO input. Sends CS command to Kaleido |
-| Toggle switch — MODE | SPST ON/OFF, panel-mount | 1 | $2 | GPIO input. Manual/Auto PID toggle |
+| Toggle switch — MODE | SPST ON/OFF, panel-mount | 1 | $2 | GPIO input. Manual/AUTO (RoastMaster software control) |
 | 10K pull-up resistors | 1/4W through-hole | 4 | $1 (pack) | One per GPIO-connected toggle (internal pull-ups also available) |
 
-**Power switch note:** The power switch should NOT just cut power to the Pi —
-that risks SD card corruption. Options:
+**Power switch note (important):** Don’t wire a toggle directly inline with
+the Raspberry Pi’s 5V rail unless you use a purpose-built “soft power”
+module/HAT. Abruptly cutting 5V can corrupt the microSD.
 
-1. **Recommended:** Wire the power toggle to a GPIO pin AND inline power. A
-   shutdown script detects the toggle going OFF, runs `sudo shutdown -h now`,
-   then the switch physically cuts power after a 5-second delay (use a simple
-   RC timer + relay, or just wait and flip).
-2. **Simple:** Just use `systemctl poweroff` from the UI (press Q to quit, Pi
-   shuts down), then flip the power switch.
+Recommended options:
+
+1. **Soft power module/HAT (best):** Use a Pi power management board that
+   supports safe shutdown and latching power.
+2. **GPIO shutdown request (simple):** Use the POWER toggle as a GPIO input
+   only. When switched OFF, the Pi runs `shutdown -h now`. After it halts, you
+   can remove USB‑C power.
+3. **Manual shutdown (simplest):** Quit the app and run `systemctl poweroff`,
+   then remove power.
 
 ### 3b. Potentiometers (3)
 
@@ -202,15 +227,20 @@ Panel-mount LED indicator lights for at-a-glance status.
 | Part | Spec | Qty | Est. Price | Notes |
 |------|------|-----|-----------|-------|
 | LED indicator — POWER | Green, 8mm or 12mm panel-mount, 3.3V | 1 | $2 | Wired directly to 3.3V rail (no GPIO needed) |
-| LED indicator — HEATER | Red/amber, 8mm panel-mount | 1 | $2 | GPIO-driven. Lit when heater switch is ON |
-| LED indicator — COOLING | Blue, 8mm panel-mount | 1 | $2 | GPIO-driven. Lit when cooling switch is ON |
-| LED indicator — ROASTING | Green, 8mm panel-mount | 1 | $2 | GPIO-driven. Lit during ROASTING phase |
-| LED indicator — FIRST CRACK | Yellow, 8mm panel-mount | 1 | $2 | GPIO-driven. Lit after FC event |
-| 220 ohm resistors | 1/4W, current limiting for LEDs | 5 | $1 (pack) | ~(3.3V - 2.0V) / 220R = 6mA per LED |
+| LED indicator — HEATER | Red/amber, 8mm panel-mount | 1 | $2 | PCA9685-driven (PWM capable). Lit when heat is enabled |
+| LED indicator — COOLING | Blue, 8mm panel-mount | 1 | $2 | PCA9685-driven (PWM capable). Lit when cooling is enabled |
+| LED indicator — ROASTING | Green, 8mm panel-mount | 1 | $2 | PCA9685-driven. Lit during ROASTING phase |
+| LED indicator — FIRST CRACK | Yellow, 8mm panel-mount | 1 | $2 | PCA9685-driven. Lit after FC event |
+| Series resistors (if needed) | 220–1K ohm, 1/4W | 4-5 | $1 (pack) | Many panel indicators include a resistor; add one for bare LEDs |
 
-**Tip:** Many panel-mount LED holders come with built-in resistors for 12V.
-For 3.3V operation, get "bare" LED holders and add your own 220R resistors,
-or buy 3.3V-rated panel-mount indicators.
+**Tip:** Many panel-mount indicators are sold as “12V” and include a resistor.
+If you want to drive indicators directly from the PCA9685 (3.3V logic), either
+buy 3.3V indicators/bare LEDs + resistors, or add a transistor driver stage
+with a 12V rail.
+
+**Indicator wiring (typical, push-pull):** `PCA9685 channel -> resistor -> LED -> GND`.
+If you choose open-drain outputs instead, wire the LED to `VCC` and let the
+PCA9685 sink current.
 
 ---
 
@@ -238,29 +268,40 @@ ideal for PWM driving.
 ### PWM Driver
 
 The RPi only has 2 hardware PWM channels, but we need at least 3 for the
-meters plus 5 for the LEDs. A PCA9685 gives us 16 channels of 12-bit PWM
+meters plus several for the LEDs. A PCA9685 gives us 16 channels of 12-bit PWM
 over I2C, using only 2 GPIO pins.
 
 | Part | Spec | Qty | Est. Price | Notes |
 |------|------|-----|-----------|-------|
 | PCA9685 breakout | 16-ch 12-bit PWM, I2C | 1 | $6 | Adafruit #815 or generic. Drives all meters + LEDs |
-| RC low-pass filter resistors | 10K 1/4W | 3 | $0.30 | One per meter channel |
-| RC low-pass filter caps | 10 uF electrolytic, 16V | 3 | $0.50 | Smooths PWM into DC for meter needle |
-| Current limiting resistors | Value depends on meter (see calc below) | 3 | $0.30 | Sets full-scale deflection current |
+| Series resistors (per meter) | Value depends on meter (see calc below) | 3 | $0.30 | Sets full-scale deflection current (and limits PWM edge current) |
+| Smoothing capacitors (optional) | 1–10 uF, 16V | 3 | $0.50 | Often optional (meter movement is slow); add if you see jitter/buzz |
 
-**Meter drive circuit (per meter):**
+**Meter drive circuit (per meter, recommended):**
 ```
-PCA9685 ch. ---[10K]---+---[R_limit]---[METER]--- GND
-                        |
-                     [10uF]
-                        |
-                       GND
+PCA9685 ch. ---[R_series]---+---[METER]--- GND
+                            |
+                         [C_smooth] (optional)
+                            |
+                           GND
 ```
-The 10K + 10uF RC filter (tau = 100ms) smooths the PWM into a steady DC
-voltage. The limiting resistor `R_limit` sets the full-scale current:
 
-- For a 0-1mA meter at 3.3V: R_limit = 3.3V / 1mA = 3.3K (use 3.3K or 3.6K)
-- For a 0-500uA meter at 3.3V: R_limit = 3.3V / 500uA = 6.6K (use 6.8K)
+**Sizing `R_series`:** Use the PCA9685 logic voltage (`VCC`, typically 3.3V)
+and your meter’s full-scale deflection current (`I_fsd`). Also account for the
+meter’s own coil resistance (`R_meter`, measure with a multimeter):
+
+`R_series ≈ (VCC / I_fsd) - R_meter`
+
+Examples (assumes `VCC=3.3V`):
+- 0–1 mA meter with `R_meter=650Ω` → `R_series≈3.3k-0.65k≈2.7k` (use 2.7k)
+- 0–500 µA meter with `R_meter=650Ω` → `R_series≈6.6k-0.65k≈5.9k` (try 5.6k–6.2k)
+
+If you don’t know `R_meter`, start with a **larger** resistor value to protect
+the meter, then decrease until full-scale reads correctly.
+
+**PCA9685 output mode:** Prefer totem-pole (push-pull) outputs for this use.
+Most PCA9685 libraries default to this. If you configure open-drain outputs,
+you’ll need a pull-up and slightly different wiring.
 
 The PCA9685 duty cycle (0-4095) maps linearly to the meter reading:
 - BT meter: 0 = 0F, 4095 = 500F
@@ -316,9 +357,10 @@ diagram at the top of this document.
 ### Toggle Switch Inputs (active LOW with pull-ups)
 | RPi Pin | GPIO | Function |
 |---------|------|----------|
+| 16 | GPIO23 | Power toggle (shutdown request / soft power) |
 | 29 | GPIO5 | Heater ON/OFF toggle |
 | 31 | GPIO6 | Cooling ON/OFF toggle |
-| 33 | GPIO13 | Mode Manual/Auto toggle |
+| 33 | GPIO13 | Mode MANUAL/AUTO toggle |
 
 ### Momentary Button Inputs (active LOW with pull-ups)
 | RPi Pin | GPIO | Function |
@@ -365,30 +407,40 @@ diagram at the top of this document.
 | 2 | 5V out (for PCA9685 V+, VU meters if needed) |
 | 6, 9, 14, etc. | GND (use multiple for clean grounding) |
 
-**Total GPIO used:** 20 pins (4 SPI + 2 I2C + 3 toggles + 7 buttons + 3 encoder + 1 save).
-Well within the Pi's 26 usable GPIO pins, with 6 spare.
+**Total GPIO used:** 20 pins (4 SPI + 2 I2C + 4 toggles + 7 buttons + 3 encoder).
+Well within the Pi's usable GPIO, with room to spare.
 
 ---
 
-## 9. Software Changes Required
+## 9. Software + Pi Setup
 
-The GPIO HAL module (`src/roastmaster/hal/gpio.py`) needs to be implemented
-to read physical controls instead of keyboard input. Key changes:
+### 9a. Software work required
 
-| Area | Change |
-|------|--------|
-| `InputEvent` enum | Add `FIRST_CRACK_END`, `SECOND_CRACK_END`, `HEATER_TOGGLE`, `COOLING_TOGGLE` |
-| `EventType` enum | Add `FIRST_CRACK_END`, `SECOND_CRACK_END` |
-| `gpio.py` HAL | Read MCP3008 for pot values, GPIO for switches/buttons, rotary encoder for navigation |
-| `app.py` | Handle new events (HS/CS commands, crack end marking) |
-| `app.py` | Drive PCA9685 for VU meters and LEDs each frame |
-| `app.py` | Encoder push opens/confirms profile browser; SAVE button triggers auto-save |
-| `config.py` | Add GPIO pin assignments, PCA9685 channel map, encoder pins |
+Current status:
+- Keyboard backend exists (`src/roastmaster/hal/keyboard.py`).
+- GPIO backend is a stub (`src/roastmaster/hal/gpio.py`).
 
-The GPIO HAL will present the same interface as `KeyboardInput` — the rest
-of the application doesn't need to change. The rotary encoder maps directly
-to existing `NAV_UP`/`NAV_DOWN`/`CONFIRM`/`PROFILE_LOAD` events that the
-profile browser already handles.
+To support this panel:
+- Implement `GPIOInput` to read switches/buttons/encoder with debouncing,
+  **edge-detect**, and startup “arm” behavior for maintained toggles.
+- Read pots via MCP3008 (SPI) with smoothing/deadband and calibration to
+  0–100% for burner/air/drum.
+- (Optional) Drive PCA9685 outputs (I2C) for panel LEDs + analog meters.
+- (Optional) Add `FIRST_CRACK_END` / `SECOND_CRACK_END` event types if wiring
+  those extra buttons; otherwise omit them or map them to existing events.
+
+### 9b. Raspberry Pi OS setup checklist
+
+- Enable **SPI** + **I2C** (`raspi-config` → Interface Options), then reboot.
+- Ensure your user can access buses (`spi` / `i2c` groups) if needed.
+- Verify hardware:
+  - MCP3008 via `/dev/spidev0.0`
+  - PCA9685 via `i2cdetect -y 1` (commonly shows as `0x40`)
+- Disable display blanking/power-saving for kiosk-style use.
+- Make the Kaleido port stable with a `udev` rule (e.g. symlink `/dev/kaleido`)
+  so it doesn’t jump between `/dev/ttyUSB0`, `/dev/ttyUSB1`, etc.
+- Autostart RoastMaster with a `systemd` service and log to `logs/` for post-run
+  review.
 
 ---
 
@@ -426,7 +478,7 @@ Recommended build sequence:
    events work with the RoastMaster software.
 
 2. **Add PCA9685 + 1 VU meter:** Verify PWM-to-meter driving works.
-   Calibrate R_limit for your specific meter.
+   Calibrate `R_series` for your specific meter.
 
 3. **Full breadboard:** Wire all controls and verify end-to-end with
    the simulator before connecting to real hardware.
@@ -478,16 +530,13 @@ Recommended build sequence:
          |  SCL=GPIO3             |
          +--+-----+-----+--------+
             |     |     |
-          ch0   ch1   ch2        ch3-ch6 -> LEDs (via 220R)
+          ch0   ch1   ch2        ch3-ch6 -> LEDs (via resistors)
             |     |     |
-         [10K] [10K] [10K]      <-- RC filter R
-            |     |     |
-            +     +     +
-         [10uF][10uF][10uF]    <-- RC filter C
-            |     |     |
-         [R_lim][R_lim][R_lim] <-- sets full-scale current
-            |     |     |
-         [VU_BT][VU_ET][VU_RoR]
-            |     |     |
-           GND   GND   GND
+        [R_series][R_series][R_series]  <-- sets full-scale current
+            |       |       |
+         [VU_BT] [VU_ET] [VU_RoR]
+            |       |       |
+           GND     GND     GND
+
+        (Optional: add C_smooth across each meter to reduce PWM ripple)
 ```
