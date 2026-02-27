@@ -674,6 +674,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Skip device selection and run in simulator mode",
     )
     parser.add_argument(
+        "--no-title",
+        action="store_true",
+        help="Skip the title screen (useful for headless testing)",
+    )
+    parser.add_argument(
         "--baud",
         type=int,
         default=9600,
@@ -776,7 +781,8 @@ def main(argv: list[str] | None = None) -> None:
     pygame.display.set_caption(WINDOW_TITLE)
     clock = pygame.time.Clock()
 
-    _show_title_screen(screen, clock)
+    if not args.no_title:
+        _show_title_screen(screen, clock)
 
     renderer = Renderer(surface=screen, window_seconds=600.0)
     hal = KeyboardInput()
