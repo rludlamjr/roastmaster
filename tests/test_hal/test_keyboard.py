@@ -38,6 +38,8 @@ class TestInputEvent:
         "CONFIRM",
         "QUIT",
         "HELP_TOGGLE",
+        "UNIT_TOGGLE",
+        "ROAST_RESET",
     ]
 
     def test_all_members_present(self):
@@ -177,6 +179,12 @@ class TestMapKeyToEvent:
 
     def test_return_maps_to_confirm(self):
         assert map_key_to_event(pygame.K_RETURN) is InputEvent.CONFIRM
+
+    def test_u_maps_to_unit_toggle(self):
+        assert map_key_to_event(pygame.K_u) is InputEvent.UNIT_TOGGLE
+
+    def test_r_maps_to_roast_reset(self):
+        assert map_key_to_event(pygame.K_r) is InputEvent.ROAST_RESET
 
     def test_unmapped_key_returns_none(self):
         # K_a is not in the mapping

@@ -6,6 +6,7 @@ They do not maintain any pygame display state themselves.
 
 from __future__ import annotations
 
+import math
 from collections import deque
 from typing import NamedTuple
 
@@ -13,6 +14,7 @@ import pygame
 
 from roastmaster.display import theme
 from roastmaster.display.fonts import render_text, text_height, text_width
+from roastmaster.display.units import c_to_f, f_to_c, f_to_c_delta
 from roastmaster.profiles.schema import ProfileSample
 
 # ---------------------------------------------------------------------------
@@ -76,6 +78,15 @@ class GraphWidget:
     ROR_MIN = -10.0
     ROR_MAX = 30.0
 
+    # Short labels for event markers on the graph
+    EVENT_LABELS = {
+        "CHARGE": "CH",
+        "TURNING_POINT": "TP",
+        "FIRST_CRACK": "FC",
+        "SECOND_CRACK": "SC",
+        "DROP": "DR",
+    }
+
     def __init__(
         self,
         rect: tuple[int, int, int, int],
@@ -96,9 +107,17 @@ class GraphWidget:
         # Reference profile traces (static — drawn behind live traces)
         self._ref_traces: dict[str, list[TracePoint]] = {}
 
+        self._use_celsius: bool = False
+
+        # Charge time offset — when set, X-axis labels treat this as t=0
+        self._charge_time: float | None = None
+
+        # Event markers: list of (time, temp, short_label)
+        self._event_markers: list[tuple[float, float, str]] = []
+
         # Inner plot area (inset from the widget rect for labels/axes)
         self._margin_left = 36
-        self._margin_right = 6
+        self._margin_right = 36
         self._margin_top = 8
         self._margin_bottom = 20
         self._plot = pygame.Rect(
@@ -111,6 +130,19 @@ class GraphWidget:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    @property
+    def use_celsius(self) -> bool:
+        return self._use_celsius
+
+    @use_celsius.setter
+    def use_celsius(self, value: bool) -> None:
+        self._use_celsius = value
+
+    def clear_traces(self) -> None:
+        """Clear all live trace data."""
+        for d in self._traces.values():
+            d.clear()
 
     def add_point(self, trace: str, t: float, value: float) -> None:
         """Append a data point to *trace* ('BT', 'ET', or 'RoR')."""
@@ -149,6 +181,32 @@ class GraphWidget:
         """True if a reference profile is loaded."""
         return bool(self._ref_traces)
 
+    def set_charge_time(self, t: float) -> None:
+        """Set the CHARGE time so X-axis labels treat it as 0:00."""
+        self._charge_time = t
+
+    def clear_charge_time(self) -> None:
+        """Remove the charge time offset."""
+        self._charge_time = None
+
+    def set_events(self, events: list[tuple[float, float, str]]) -> None:
+        """Set event markers on the graph.
+
+        Parameters
+        ----------
+        events:
+            List of (time, temp, event_type_name) tuples.
+            event_type_name is mapped to a short label via EVENT_LABELS.
+        """
+        self._event_markers = [
+            (t, temp, self.EVENT_LABELS.get(name, name[:2]))
+            for t, temp, name in events
+        ]
+
+    def clear_events(self) -> None:
+        """Remove all event markers."""
+        self._event_markers = []
+
     def draw(self, surface: pygame.Surface, elapsed: float) -> None:
         """Render the widget onto *surface*.
 
@@ -172,18 +230,38 @@ class GraphWidget:
         if self._ref_traces:
             self._draw_ref_traces(surface, elapsed)
         self._draw_traces(surface, elapsed)
+        self._draw_bt_projection(surface, elapsed)
+        self._draw_event_markers(surface, elapsed)
         self._draw_legend(surface)
 
     # ------------------------------------------------------------------
     # Private drawing helpers
     # ------------------------------------------------------------------
 
+    def _visible_range(self, elapsed: float) -> tuple[float, float]:
+        """Return (t_start, t_end) for the visible window.
+
+        The window always spans ``window_seconds``.  Before the roast
+        reaches that duration, the right edge stays fixed at
+        ``window_seconds`` so the projection line has room to draw.
+        After that, the window scrolls with *elapsed*.
+
+        When a charge time is set, the window anchors so that t_start
+        is at minimum the charge time — preheat data scrolls off the
+        left edge immediately.
+        """
+        if self._charge_time is not None:
+            t_end = max(self._charge_time + self.window_seconds, elapsed)
+        else:
+            t_end = max(self.window_seconds, elapsed)
+        t_start = t_end - self.window_seconds
+        return t_start, t_end
+
     def _t_to_x(self, t: float, elapsed: float) -> int:
         """Convert an elapsed-seconds time to a plot X coordinate."""
         p = self._plot
-        # right edge of plot = elapsed, left edge = elapsed - window
-        t_start = max(0.0, elapsed - self.window_seconds)
-        fraction = (t - t_start) / self.window_seconds
+        t_start, t_end = self._visible_range(elapsed)
+        fraction = (t - t_start) / (t_end - t_start)
         return p.x + int(fraction * p.width)
 
     def _temp_to_y(self, temp: float) -> int:
@@ -204,21 +282,33 @@ class GraphWidget:
         """Draw dotted grid lines."""
         p = self._plot
 
-        # Horizontal temperature grid lines (every 50 °F)
-        temp_step = 50.0
-        temp = (self.temp_min // temp_step + 1) * temp_step
-        while temp <= self.temp_max:
-            y = self._temp_to_y(temp)
-            if p.top <= y <= p.bottom:
-                self._draw_dotted_hline(surface, p.x, p.right, y, theme.GRID)
-            temp += temp_step
+        if self._use_celsius:
+            # Grid every 25 °C — iterate in C space, convert to F for pixel mapping
+            c_step = 25.0
+            c_min = f_to_c(self.temp_min)
+            c_max = f_to_c(self.temp_max)
+            c_val = (c_min // c_step + 1) * c_step
+            while c_val <= c_max:
+                y = self._temp_to_y(c_to_f(c_val))
+                if p.top <= y <= p.bottom:
+                    self._draw_dotted_hline(surface, p.x, p.right, y, theme.GRID)
+                c_val += c_step
+        else:
+            # Horizontal temperature grid lines (every 50 °F)
+            temp_step = 50.0
+            temp = (self.temp_min // temp_step + 1) * temp_step
+            while temp <= self.temp_max:
+                y = self._temp_to_y(temp)
+                if p.top <= y <= p.bottom:
+                    self._draw_dotted_hline(surface, p.x, p.right, y, theme.GRID)
+                temp += temp_step
 
         # Vertical time grid lines (every 60 s)
-        t_start = max(0.0, elapsed - self.window_seconds)
+        t_start, t_end = self._visible_range(elapsed)
         # Align to minute boundaries
         first_minute = int(t_start / 60) * 60
         t_mark = first_minute
-        while t_mark <= elapsed:
+        while t_mark <= t_end:
             if t_mark >= t_start:
                 x = self._t_to_x(t_mark, elapsed)
                 if p.x <= x <= p.right:
@@ -267,37 +357,142 @@ class GraphWidget:
                 y += gap
             on = not on
 
+    def _draw_dashed_line(
+        self,
+        surface: pygame.Surface,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        color: tuple[int, int, int],
+        dash: int = 3,
+        gap: int = 3,
+    ) -> None:
+        """Draw a dashed line between two arbitrary points."""
+        dx = x2 - x1
+        dy = y2 - y1
+        length = math.hypot(dx, dy)
+        if length < 1:
+            return
+        step = dash + gap
+        dist = 0.0
+        while dist < length:
+            seg_end = min(dist + dash, length)
+            t0 = dist / length
+            t1 = seg_end / length
+            sx = int(x1 + dx * t0)
+            sy = int(y1 + dy * t0)
+            ex = int(x1 + dx * t1)
+            ey = int(y1 + dy * t1)
+            pygame.draw.line(surface, color, (sx, sy), (ex, ey))
+            dist += step
+
+    def _draw_bt_projection(self, surface: pygame.Surface, elapsed: float) -> None:
+        """Draw a dashed projection line from the last BT point to the right edge."""
+        bt_data = self._traces["BT"]
+        ror_data = self._traces["RoR"]
+        if not bt_data or not ror_data:
+            return
+
+        last_bt = bt_data[-1]
+        last_ror = ror_data[-1].value
+
+        # Skip if RoR is near zero (no meaningful projection)
+        if abs(last_ror) < 0.1:
+            return
+
+        p = self._plot
+        # Convert RoR from deg/min to deg/sec
+        ror_per_sec = last_ror / 60.0
+
+        # Project to the right edge of the visible window
+        _t_start, t_end = self._visible_range(elapsed)
+        dt = t_end - last_bt.t
+        if dt <= 0:
+            return
+
+        projected_temp = last_bt.value + ror_per_sec * dt
+
+        # Clamp projected temp to axis bounds and shorten line accordingly
+        if last_ror > 0 and projected_temp > self.temp_max:
+            dt = (self.temp_max - last_bt.value) / ror_per_sec
+            projected_temp = self.temp_max
+            t_end = last_bt.t + dt
+        elif last_ror < 0 and projected_temp < self.temp_min:
+            dt = (self.temp_min - last_bt.value) / ror_per_sec
+            projected_temp = self.temp_min
+            t_end = last_bt.t + dt
+
+        x1 = self._t_to_x(last_bt.t, elapsed)
+        y1 = self._temp_to_y(last_bt.value)
+        x2 = self._t_to_x(t_end, elapsed)
+        y2 = self._temp_to_y(projected_temp)
+
+        # Clip to plot area
+        x1 = max(p.x, min(p.right, x1))
+        x2 = max(p.x, min(p.right, x2))
+        y1 = max(p.top, min(p.bottom, y1))
+        y2 = max(p.top, min(p.bottom, y2))
+
+        self._draw_dashed_line(surface, x1, y1, x2, y2, theme.PROJECTION_BT)
+
     def _draw_axis_labels(self, surface: pygame.Surface, elapsed: float) -> None:
         p = self._plot
 
-        # Y axis temperature labels
-        temp_step = 100.0
-        temp = (self.temp_min // temp_step) * temp_step
-        while temp <= self.temp_max:
-            y = self._temp_to_y(temp)
-            if p.top <= y <= p.bottom:
-                label = str(int(temp))
-                lw = text_width(label, scale=1)
-                render_text(
-                    surface,
-                    label,
-                    self.rect.x + self._margin_left - lw - 2,
-                    y - text_height(1) // 2,
-                    theme.TEXT_DIM,
-                    scale=1,
-                )
-            temp += temp_step
+        if self._use_celsius:
+            # Y axis labels every 50 °C
+            c_step = 50.0
+            c_min = f_to_c(self.temp_min)
+            c_max = f_to_c(self.temp_max)
+            c_val = (c_min // c_step) * c_step
+            while c_val <= c_max:
+                y = self._temp_to_y(c_to_f(c_val))
+                if p.top <= y <= p.bottom:
+                    label = str(int(c_val))
+                    lw = text_width(label, scale=1)
+                    render_text(
+                        surface,
+                        label,
+                        self.rect.x + self._margin_left - lw - 2,
+                        y - text_height(1) // 2,
+                        theme.TEXT_DIM,
+                        scale=1,
+                    )
+                c_val += c_step
+        else:
+            # Y axis temperature labels every 100 °F
+            temp_step = 100.0
+            temp = (self.temp_min // temp_step) * temp_step
+            while temp <= self.temp_max:
+                y = self._temp_to_y(temp)
+                if p.top <= y <= p.bottom:
+                    label = str(int(temp))
+                    lw = text_width(label, scale=1)
+                    render_text(
+                        surface,
+                        label,
+                        self.rect.x + self._margin_left - lw - 2,
+                        y - text_height(1) // 2,
+                        theme.TEXT_DIM,
+                        scale=1,
+                    )
+                temp += temp_step
 
-        # X axis time labels
-        t_start = max(0.0, elapsed - self.window_seconds)
+        # X axis time labels (full visible window)
+        t_start, t_end = self._visible_range(elapsed)
+        offset = self._charge_time or 0.0
         first_minute = int(t_start / 60) * 60
         t_mark = first_minute
-        while t_mark <= elapsed:
+        while t_mark <= t_end:
             if t_mark >= t_start:
+                display_t = t_mark - offset
+                if display_t < 0:
+                    t_mark += 60.0
+                    continue
                 x = self._t_to_x(t_mark, elapsed)
                 if p.x <= x <= p.right:
-                    mins = int(t_mark) // 60
-                    secs = int(t_mark) % 60
+                    mins = int(display_t) // 60
+                    secs = int(display_t) % 60
                     label = f"{mins}:{secs:02d}"
                     lw = text_width(label, scale=1)
                     render_text(
@@ -309,6 +504,39 @@ class GraphWidget:
                         scale=1,
                     )
             t_mark += 60.0
+
+        # Right Y-axis temperature labels
+        if self._use_celsius:
+            c_val = (c_min // c_step) * c_step
+            while c_val <= c_max:
+                y = self._temp_to_y(c_to_f(c_val))
+                if p.top <= y <= p.bottom:
+                    label = str(int(c_val))
+                    render_text(
+                        surface,
+                        label,
+                        p.right + 4,
+                        y - text_height(1) // 2,
+                        theme.TEXT_DIM,
+                        scale=1,
+                    )
+                c_val += c_step
+        else:
+            temp_step = 100.0
+            temp = (self.temp_min // temp_step) * temp_step
+            while temp <= self.temp_max:
+                y = self._temp_to_y(temp)
+                if p.top <= y <= p.bottom:
+                    label = str(int(temp))
+                    render_text(
+                        surface,
+                        label,
+                        p.right + 4,
+                        y - text_height(1) // 2,
+                        theme.TEXT_DIM,
+                        scale=1,
+                    )
+                temp += temp_step
 
     def _draw_ref_traces(self, surface: pygame.Surface, elapsed: float) -> None:
         """Draw reference profile traces behind the live data."""
@@ -388,6 +616,27 @@ class GraphWidget:
                     draw_x1 = min(x1, clip_rect.right)
                     pygame.draw.line(surface, ror_color, (draw_x0, y0), (draw_x1, y1))
 
+    def _draw_event_markers(self, surface: pygame.Surface, elapsed: float) -> None:
+        """Draw filled circles and short text labels at event positions on the BT trace."""
+        if not self._event_markers:
+            return
+        p = self._plot
+        for t, temp, label in self._event_markers:
+            x = self._t_to_x(t, elapsed)
+            y = self._temp_to_y(temp)
+            # Clip to plot area
+            if x < p.x or x > p.right or y < p.top or y > p.bottom:
+                continue
+            pygame.draw.circle(surface, theme.EVENT_MARKER, (x, y), 4)
+            lw = text_width(label, scale=1)
+            lh = text_height(1)
+            lx = x - lw // 2
+            ly = y - lh - 6
+            # Keep label inside plot area
+            lx = max(p.x, min(p.right - lw, lx))
+            ly = max(p.top, ly)
+            render_text(surface, label, lx, ly, theme.EVENT_MARKER, scale=1)
+
     def _draw_legend(self, surface: pygame.Surface) -> None:
         p = self._plot
         x = p.x + 4
@@ -438,15 +687,17 @@ class NumericReadout:
         self.color = color
         self.value_scale = value_scale
         self._value: float | None = None
+        self._use_celsius: bool = False
         self._dim_color = (
             max(0, color[0] // 3),
             max(0, color[1] // 3),
             max(0, color[2] // 3),
         )
 
-    def update(self, value: float | None) -> None:
+    def update(self, value: float | None, *, use_celsius: bool = False) -> None:
         """Set the current numeric value (None = dashes)."""
         self._value = value
+        self._use_celsius = use_celsius
 
     def draw(self, surface: pygame.Surface) -> None:
         r = self.rect
@@ -458,27 +709,41 @@ class NumericReadout:
         # Label in small text – top left
         render_text(surface, self.label, r.x + 4, r.y + 4, self._dim_color, scale=1)
 
+        # Display unit (swap F→C when in celsius mode)
+        if self._use_celsius:
+            display_unit = self.unit.replace("F", "C")
+        else:
+            display_unit = self.unit
+
         # Unit in small text – bottom right
-        uw = text_width(self.unit, scale=1)
+        uw = text_width(display_unit, scale=1)
         render_text(
             surface,
-            self.unit,
+            display_unit,
             r.right - uw - 4,
             r.bottom - text_height(1) - 4,
             self._dim_color,
             scale=1,
         )
 
+        # Convert value for display
+        display_value = self._value
+        if display_value is not None and self._use_celsius:
+            if "/M" in self.unit:
+                display_value = f_to_c_delta(display_value)
+            else:
+                display_value = f_to_c(display_value)
+
         # Main value – large, centered
         sc = self.value_scale
-        if self._value is None:
+        if display_value is None:
             val_str = "---"
         else:
             # Display as integer if we're ≥ 10, otherwise 1 decimal
-            if abs(self._value) >= 10 or self._value == 0:
-                val_str = str(int(round(self._value)))
+            if abs(display_value) >= 10 or display_value == 0:
+                val_str = str(int(round(display_value)))
             else:
-                val_str = f"{self._value:.1f}"
+                val_str = f"{display_value:.1f}"
 
         vw = text_width(val_str, scale=sc)
         vh = text_height(sc)
