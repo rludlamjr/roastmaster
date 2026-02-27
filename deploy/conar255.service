@@ -1,20 +1,23 @@
+# Template — the setup script replaces __USER__, __HOME__, __APP_DIR__
+# before installing to /etc/systemd/system/conar255.service
+
 [Unit]
 Description=CONAR Model 255 Advanced Roasting System
 After=multi-user.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=__USER__
+Group=__USER__
 
 # SDL framebuffer / DRM access
 Environment=SDL_VIDEODRIVER=kmsdrm
 Environment=SDL_AUDIODRIVER=dummy
-Environment=HOME=/home/pi
+Environment=HOME=__HOME__
 
 # Path to the uv-managed venv runner
-ExecStart=/home/pi/.local/bin/uv run --project /home/pi/conar255 roastmaster --sim
-WorkingDirectory=/home/pi/conar255
+ExecStart=__HOME__/.local/bin/uv run --project __APP_DIR__ roastmaster --sim
+WorkingDirectory=__APP_DIR__
 
 # Restart on crash (3 second cooldown)
 Restart=on-failure
