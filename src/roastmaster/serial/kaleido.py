@@ -36,6 +36,7 @@ Key tags
  AH        ↔     Auto-heat PID: 0 = off, 1 = on
  TS        ↔     Target/setpoint temperature (°C or °F)
  HS        ↔     Heating switch: 0 = off, 1 = on
+ CS        ↔     Cooling switch: 0 = off, 1 = on
  BT        ←     Bean temperature
  ET        ←     Environment temperature
  AT        ←     Ambient temperature
@@ -69,6 +70,8 @@ used. No Artisan code has been copied.
 from __future__ import annotations
 
 import logging
+import queue
+import threading
 import time
 
 import serial
@@ -203,7 +206,12 @@ _DEFAULT_TIMEOUT = 0.4
 _INIT_TIMEOUT = 6.0  # total init sequence timeout
 _PING_TIMEOUT = 1.2  # timeout for a single command/response exchange
 _PING_RETRY_DELAY = 1.0  # delay between ping retries
-_READ_TIMEOUT = 5.0  # data read timeout (triggers disconnect)
+_READ_TIMEOUT = 5.0  # seconds (used for offline heuristics/logging)
+_SEND_TIMEOUT = 0.6  # request/await timeout (Artisan-style)
+_BUTTON_TIMEOUT = 1.2  # button/toggle request timeout (Artisan-style)
+
+# Reader/writer thread management
+_JOIN_TIMEOUT = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -236,14 +244,38 @@ class KaleidoDevice:
         port: str,
         baud_rate: int = _DEFAULT_BAUD_RATE,
         temp_unit: str = "F",
+        *,
+        serial_factory: type[serial.Serial] = serial.Serial,
     ) -> None:
         self._port = port
         self._baud_rate = baud_rate
         self._temp_unit = temp_unit
+        self._serial_factory = serial_factory
         self._serial: serial.Serial | None = None
         self._connected: bool = False
-        # Cached state from last device response
+        self._running: bool = False
+
+        self._lock = threading.Lock()
+
+        # Cached state from last device response (updated by reader thread)
         self._state: dict[str, str | int | float] = {}
+
+        # Outgoing write queue (writer thread)
+        self._write_queue: queue.Queue[str | None] | None = None
+
+        # Awaited variable updates (Artisan-style request correlation)
+        self._single_await_var_prefix = "!"
+        self._pending_requests: dict[str, threading.Event] = {}
+
+        # De-duplication: last sent payload per tag to avoid spamming the roaster
+        self._last_sent: dict[str, str] = {}
+
+        # Threads
+        self._reader_thread: threading.Thread | None = None
+        self._writer_thread: threading.Thread | None = None
+
+        # If True, log raw traffic at INFO
+        self._log_traffic = False
 
     # ------------------------------------------------------------------
     # Connection lifecycle
@@ -260,7 +292,7 @@ class KaleidoDevice:
             TimeoutError: If the device does not respond within the timeout.
         """
         logger.info("Connecting to Kaleido on %s at %d baud", self._port, self._baud_rate)
-        self._serial = serial.Serial(
+        self._serial = self._serial_factory(
             port=self._port,
             baudrate=self._baud_rate,
             bytesize=_DEFAULT_BYTESIZE,
@@ -271,28 +303,63 @@ class KaleidoDevice:
             rtscts=False,
             dsrdtr=False,
         )
-        self._state = {}
-        self._init_handshake()
+
+        self._reset_state()
+        self._start_io_threads()
+        try:
+            self._init_handshake()
+        except Exception:
+            # Ensure we don't leave background threads running on failed connect.
+            self._stop_io_threads()
+            if self._serial is not None:
+                try:
+                    self._serial.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            self._serial = None
+            self._connected = False
+            raise
         self._connected = True
         sn = self._state.get("SN", "unknown")
         logger.info("Connected to Kaleido (SN: %s)", sn)
 
     def disconnect(self) -> None:
         """Send the close guard and close the serial port."""
-        if self._serial is not None and self._serial.is_open:
-            try:
-                self._send_and_recv(create_msg("CL", "AR"))
-            except Exception:  # noqa: BLE001
-                pass  # best-effort close
-            self._serial.close()
-            logger.info("Disconnected from Kaleido on %s", self._port)
-        self._serial = None
-        self._connected = False
-        self._state = {}
+        try:
+            if self._serial is not None and self._serial.is_open:
+                try:
+                    # Artisan-style: send "end safety guard" and (best effort)
+                    # await SN as a single-var reply.
+                    self._send_request(
+                        "CL",
+                        "AR",
+                        var="SN",
+                        timeout=2 * _SEND_TIMEOUT,
+                        single_request=True,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass  # best-effort close
+        finally:
+            self._stop_io_threads()
+            if self._serial is not None:
+                try:
+                    self._serial.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            if self._serial is not None:
+                logger.info("Disconnected from Kaleido on %s", self._port)
+            self._serial = None
+            self._connected = False
+            self._reset_state()
 
     @property
     def connected(self) -> bool:
-        return self._connected and self._serial is not None and self._serial.is_open
+        return (
+            self._connected
+            and self._serial is not None
+            and bool(getattr(self._serial, "is_open", False))
+            and self._running
+        )
 
     # ------------------------------------------------------------------
     # Temperature reading
@@ -313,10 +380,13 @@ class KaleidoDevice:
         """
         self._require_connected()
         timestamp = time.time()
-        self._send_and_recv(create_msg("RD", "A0"))
+        res = self._send_request("RD", "A0", var="BT", timeout=_PING_TIMEOUT)
+        if res is None:
+            raise TimeoutError("Timed out waiting for Kaleido RD response")
 
-        bt = self._state.get("BT")
-        et = self._state.get("ET")
+        with self._lock:
+            bt = self._state.get("BT")
+            et = self._state.get("ET")
 
         if bt is None or et is None:
             raise ValueError(
@@ -337,19 +407,54 @@ class KaleidoDevice:
         """Set heater/burner power (0-100 %)."""
         _validate_percent("power", power)
         self._require_connected()
-        self._send(create_msg("HP", str(power)))
+        self._send_deduped("HP", create_msg("HP", str(power)))
 
     def set_drum(self, speed: int) -> None:
         """Set drum rotation speed (0-100)."""
         _validate_percent("speed", speed)
         self._require_connected()
-        self._send(create_msg("RC", str(speed)))
+        self._send_deduped("RC", create_msg("RC", str(speed)))
 
     def set_fan(self, speed: int) -> None:
         """Set fan/air speed (0-100)."""
         _validate_percent("speed", speed)
         self._require_connected()
-        self._send(create_msg("FC", str(speed)))
+        self._send_deduped("FC", create_msg("FC", str(speed)))
+
+    def set_heating_switch(self, enabled: bool) -> None:
+        """Enable/disable heating (HS: 0/1)."""
+        self._require_connected()
+        value = "1" if enabled else "0"
+        res = self._send_request("HS", value, timeout=_BUTTON_TIMEOUT)
+        if res is None:
+            raise TimeoutError("Timed out waiting for Kaleido HS reply")
+
+    def set_cooling_switch(self, enabled: bool) -> None:
+        """Enable/disable cooling (CS: 0/1)."""
+        self._require_connected()
+        value = "1" if enabled else "0"
+        res = self._send_request("CS", value, timeout=_BUTTON_TIMEOUT)
+        if res is None:
+            raise TimeoutError("Timed out waiting for Kaleido CS reply")
+
+    def set_pid_mode(self, enabled: bool) -> None:
+        """Enable/disable Kaleido PID / auto-heat (AH: 0/1)."""
+        self._require_connected()
+        value = "1" if enabled else "0"
+        self._send_deduped("AH", create_msg("AH", value))
+
+    def set_setpoint(self, temp: float) -> None:
+        """Set Kaleido target temperature / setpoint (TS)."""
+        self._require_connected()
+        self._send_deduped("TS", create_msg("TS", str(temp)))
+
+    def mark_event(self, code: int) -> None:
+        """Send a Kaleido event marker (EV).
+
+        Artisan uses EV codes to signal roast events like CHARGE/FC/SC/DROP/COOL.
+        """
+        self._require_connected()
+        self._send(create_msg("EV", str(code)))
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -357,65 +462,53 @@ class KaleidoDevice:
 
     def _init_handshake(self) -> None:
         """Run the PI → TU → SC AR init sequence."""
-        assert self._serial is not None
         deadline = time.monotonic() + _INIT_TIMEOUT
 
         # Step 1: ping until we get a sid response
         while time.monotonic() < deadline:
             try:
-                self._send_and_recv(create_msg("PI"))
-                if "sid" in self._state:
+                sid = self._send_request("PI", var="sid", timeout=_PING_TIMEOUT)
+                if sid is not None and self.get_state("sid") is not None:
                     break
-            except (serial.SerialTimeoutException, ValueError):
+            except (TimeoutError, ValueError):
                 pass
             time.sleep(_PING_RETRY_DELAY)
         else:
             raise TimeoutError("Kaleido did not respond to PI ping within timeout")
 
         # Step 2: set temperature unit
-        self._send_and_recv(create_msg("TU", self._temp_unit))
+        try:
+            self._send_request(
+                "TU",
+                self._temp_unit,
+                var="TU",
+                timeout=_PING_TIMEOUT,
+                single_request=True,
+            )
+        except Exception:  # noqa: BLE001
+            pass  # best-effort
 
         # Step 3: start session guard
-        self._send_and_recv(create_msg("SC", "AR"))
-
-    def _send(self, message: str) -> None:
-        """Write a message to the serial port (fire-and-forget)."""
-        assert self._serial is not None
-        self._serial.write(message.encode("utf-8"))
-        self._serial.flush()
-        logger.debug("Sent: %s", message.strip())
-
-    def _recv(self) -> str:
-        """Read one newline-terminated message from the serial port.
-
-        Raises:
-            serial.SerialTimeoutException: If no complete line arrives
-                within the configured timeout.
-        """
-        assert self._serial is not None
-        # Temporarily increase timeout for reads that expect a response
-        old_timeout = self._serial.timeout
-        self._serial.timeout = _PING_TIMEOUT
         try:
-            raw = self._serial.readline()
-        finally:
-            self._serial.timeout = old_timeout
+            self._send_request(
+                "SC",
+                "AR",
+                var="SC",
+                timeout=_PING_TIMEOUT,
+                single_request=True,
+            )
+        except Exception:  # noqa: BLE001
+            pass  # best-effort
 
-        if not raw:
-            raise serial.SerialTimeoutException("No response from Kaleido")
-
-        message = raw.decode("utf-8", errors="replace").strip()
-        logger.debug("Recv: %s", message)
-        return message
-
-    def _send_and_recv(self, message: str) -> tuple[int, dict[str, str | int | float]]:
-        """Send a command and parse the response, updating internal state."""
-        self._send(message)
-        response = self._recv()
-        sid, state = parse_response(response)
-        self._state["sid"] = sid
-        self._state.update(state)
-        return sid, state
+        # Step 4 (best-effort): ensure heating/cooling are off on connect.
+        #
+        # This is a safety precaution to avoid accidentally inheriting a
+        # previous session's state (e.g. heater left ON by another controller).
+        try:
+            self._send_deduped("HS", create_msg("HS", "0"))
+            self._send_deduped("CS", create_msg("CS", "0"))
+        except Exception:  # noqa: BLE001
+            pass
 
     def _require_connected(self) -> None:
         if not self.connected:
@@ -426,6 +519,219 @@ class KaleidoDevice:
     def __repr__(self) -> str:
         status = "connected" if self.connected else "disconnected"
         return f"KaleidoDevice(port={self._port!r}, status={status})"
+
+    # ------------------------------------------------------------------
+    # Artisan-style comm primitives (clean-room implementation)
+    # ------------------------------------------------------------------
+
+    def set_logging(self, enabled: bool) -> None:
+        """Enable raw traffic logging (INFO).
+
+        Useful for debugging real-device communication, especially over Bluetooth.
+        """
+        self._log_traffic = enabled
+
+    def get_state(self, var: str) -> str | int | float | None:
+        """Return the current state for a given variable (Artisan-style defaults)."""
+        with self._lock:
+            if var in self._state:
+                return self._state[var]
+        if var in {"sid", "TU", "SC", "CL", "SN"}:
+            return None
+        if _is_int_var(var):
+            return -1
+        return -1.0
+
+    def _reset_state(self) -> None:
+        with self._lock:
+            self._state = {}
+            self._pending_requests = {}
+            self._last_sent = {}
+
+    def _start_io_threads(self) -> None:
+        if self._running:
+            return
+        if self._serial is None:
+            raise RuntimeError("Serial port is not open")
+        self._running = True
+        self._write_queue = queue.Queue()
+
+        self._reader_thread = threading.Thread(
+            target=self._reader_loop,
+            name="KaleidoSerialReader",
+            daemon=True,
+        )
+        self._writer_thread = threading.Thread(
+            target=self._writer_loop,
+            name="KaleidoSerialWriter",
+            daemon=True,
+        )
+        self._reader_thread.start()
+        self._writer_thread.start()
+
+    def _stop_io_threads(self) -> None:
+        if not self._running:
+            return
+        self._running = False
+        if self._write_queue is not None:
+            try:
+                self._write_queue.put_nowait(None)
+            except Exception:  # noqa: BLE001
+                pass
+
+        for t in (self._reader_thread, self._writer_thread):
+            if t is not None and t.is_alive():
+                t.join(timeout=_JOIN_TIMEOUT)
+
+        self._reader_thread = None
+        self._writer_thread = None
+        self._write_queue = None
+
+        with self._lock:
+            # Unblock any pending send_request waiters so we don't hang on shutdown.
+            pending = list(self._pending_requests.values())
+            self._pending_requests.clear()
+        for ev in pending:
+            ev.set()
+
+    def _writer_loop(self) -> None:
+        assert self._serial is not None
+        assert self._write_queue is not None
+        while self._running:
+            try:
+                msg = self._write_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            try:
+                if msg is None:
+                    break
+                if self._log_traffic:
+                    logger.info("TX: %s", msg.strip())
+                self._serial.write(msg.encode("utf-8"))
+                self._serial.flush()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Writer loop error: %s", exc)
+                break
+            finally:
+                try:
+                    self._write_queue.task_done()
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def _reader_loop(self) -> None:
+        assert self._serial is not None
+        while self._running:
+            try:
+                raw = self._serial.readline()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Reader loop error: %s", exc)
+                break
+
+            if not raw:
+                continue
+
+            try:
+                message = raw.decode("utf-8", errors="replace").strip()
+            except Exception:  # noqa: BLE001
+                continue
+
+            if not message:
+                continue
+            if self._log_traffic:
+                logger.info("RX: %s", message)
+            self._process_message(message)
+
+        # If we exit the reader loop unexpectedly, mark disconnected and stop writer too.
+        self._connected = False
+        self._running = False
+        if self._write_queue is not None:
+            try:
+                self._write_queue.put_nowait(None)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _process_message(self, message: str) -> None:
+        msg = message.strip()
+        if len(msg) < 3 or not msg.startswith("{") or not msg.endswith("}"):
+            return
+
+        # Determine whether this was a "single-var reply" (Artisan uses this to disambiguate awaits)
+        parts = msg[1:-1].split(",")
+        single_res = len(parts[1:]) == 1
+
+        try:
+            sid, state = parse_response(msg)
+        except ValueError:
+            return
+
+        # Update sid and clear any waiters on sid
+        with self._lock:
+            self._state["sid"] = sid
+        self._clear_request("sid")
+
+        for var, value in state.items():
+            with self._lock:
+                self._state[var] = value
+            clear_var = f"{self._single_await_var_prefix}{var}" if single_res else var
+            self._clear_request(clear_var)
+
+    def _add_request(self, var: str) -> threading.Event:
+        with self._lock:
+            ev = self._pending_requests.get(var)
+            if ev is None:
+                ev = threading.Event()
+                self._pending_requests[var] = ev
+            return ev
+
+    def _clear_request(self, var: str) -> None:
+        ev: threading.Event | None = None
+        with self._lock:
+            ev = self._pending_requests.pop(var, None)
+        if ev is not None:
+            ev.set()
+
+    def _send(self, message: str) -> None:
+        if not self._running or self._write_queue is None:
+            raise RuntimeError("Kaleido I/O threads not running")
+        self._write_queue.put(message)
+
+    def _send_deduped(self, tag: str, message: str) -> None:
+        """Send a message but avoid re-sending identical payloads for the same tag."""
+        with self._lock:
+            if self._last_sent.get(tag) == message:
+                return
+            self._last_sent[tag] = message
+        self._send(message)
+
+    def _send_request(
+        self,
+        target: str,
+        value: str | None = None,
+        *,
+        var: str | None = None,
+        timeout: float | None = None,
+        single_request: bool = False,
+    ) -> str | None:
+        """Send a message and await an updated value for *var* (Artisan-style)."""
+        if timeout is None:
+            timeout = _SEND_TIMEOUT
+
+        variable = target if var is None else var
+        await_var = (
+            f"{self._single_await_var_prefix}{variable}"
+            if var is None or single_request
+            else variable
+        )
+
+        ev = self._add_request(await_var)
+        self._send(create_msg(target, value))
+        if not ev.wait(timeout):
+            # Prevent unbounded growth of pending requests on repeated timeouts.
+            with self._lock:
+                if self._pending_requests.get(await_var) is ev:
+                    self._pending_requests.pop(await_var, None)
+            return None
+        return str(self.get_state(variable))
 
 
 # ---------------------------------------------------------------------------

@@ -13,8 +13,10 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+import os
 import signal
 import sys
+from pathlib import Path
 
 import pygame
 
@@ -68,6 +70,21 @@ class ReadOnlyDevice:
     def set_fan(self, speed: int) -> None:
         pass  # read-only
 
+    def set_heating_switch(self, enabled: bool) -> None:
+        pass  # read-only
+
+    def set_cooling_switch(self, enabled: bool) -> None:
+        pass  # read-only
+
+    def set_pid_mode(self, enabled: bool) -> None:
+        pass  # read-only
+
+    def set_setpoint(self, temp: float) -> None:
+        pass  # read-only
+
+    def mark_event(self, code: int) -> None:
+        pass  # read-only
+
 # ---------------------------------------------------------------------------
 # Roast session: bundles all engine state for a single roast
 # ---------------------------------------------------------------------------
@@ -82,6 +99,8 @@ class RoastSession:
         self.ror = RoRCalculator()
         self.pid = PIDController()
         self.auto_mode = False
+        self.heat_enabled = False
+        self.cooling_enabled = False
 
         # Latest readings (updated each sample)
         self.bt: float | None = None
@@ -97,6 +116,8 @@ class RoastSession:
         self.ror.reset()
         self.pid.reset()
         self.auto_mode = False
+        self.heat_enabled = False
+        self.cooling_enabled = False
         self.bt = None
         self.et = None
         self.current_ror = None
@@ -122,7 +143,10 @@ class RoastSession:
 # Input handling
 # ---------------------------------------------------------------------------
 
-_DEFAULT_MESSAGE = "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  Q:QUIT"
+_DEFAULT_MESSAGE = (
+    "H:HEAT  C:COOL  P:PID  [:SV-  ]:SV+  T:PREHEAT  "
+    "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  Q:QUIT  F12:DEBUG"
+)
 
 
 def _handle_input(
@@ -135,6 +159,81 @@ def _handle_input(
     phase = session.fsm.phase
     elapsed = session.fsm.elapsed
 
+    if event == InputEvent.HEAT_TOGGLE:
+        desired = not session.heat_enabled
+        if desired:
+            # Heating and cooling are mutually exclusive on the Kaleido.
+            # Always attempt to turn cooling off, even if our local session state
+            # believes it is already off (device state may persist across runs).
+            try:
+                device.set_cooling_switch(False)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Cooling switch error: %s", exc)
+                return "COOL OFF FAILED"
+            session.cooling_enabled = False
+
+            heat_ack = True
+            try:
+                device.set_heating_switch(True)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("Heating switch error: %s", exc)
+                return "HEAT ON FAILED"
+            except TimeoutError as exc:
+                # Some firmware versions may not acknowledge toggle commands
+                # with a single-var reply. The command was still transmitted;
+                # proceed and let the operator verify actual heat behavior.
+                logger.warning("Heating switch timeout: %s", exc)
+                heat_ack = False
+            session.heat_enabled = True
+            return "HEAT ON" if heat_ack else "HEAT ON (NO ACK)"
+
+        # Turning heat OFF is always safe to reflect locally immediately; we also
+        # try to command the roaster to stop heating.
+        session.heat_enabled = False
+        try:
+            device.set_heater(0)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("Heater off error: %s", exc)
+        heat_ack = True
+        try:
+            device.set_heating_switch(False)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("Heating switch error: %s", exc)
+            return "HEAT OFF FAILED"
+        except TimeoutError as exc:
+            logger.warning("Heating switch timeout: %s", exc)
+            heat_ack = False
+        return "HEAT OFF" if heat_ack else "HEAT OFF (NO ACK)"
+
+    if event == InputEvent.COOL_TOGGLE:
+        desired = not session.cooling_enabled
+        if desired:
+            # Gate heating off immediately regardless of device response.
+            session.cooling_enabled = True
+            session.heat_enabled = False
+            try:
+                device.set_heater(0)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("Heater off error: %s", exc)
+            try:
+                device.set_heating_switch(False)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Heating switch error: %s", exc)
+            try:
+                device.set_cooling_switch(True)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Cooling switch error: %s", exc)
+                return "COOL ON FAILED"
+            return "COOL ON"
+
+        try:
+            device.set_cooling_switch(False)
+        except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+            logger.warning("Cooling switch error: %s", exc)
+            return "COOL OFF FAILED"
+        session.cooling_enabled = False
+        return "COOL OFF"
+
     if event == InputEvent.CHARGE:
         if phase == RoastPhase.IDLE:
             session.fsm.start_preheat(elapsed)
@@ -145,17 +244,31 @@ def _handle_input(
             return None
         if session.bt is not None:
             session.events.mark_event(EventType.CHARGE, elapsed, session.bt)
+        try:
+            device.mark_event(1)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("EV CHARGE error: %s", exc)
         return "CHARGE MARKED"
 
     if event == InputEvent.FIRST_CRACK:
         if phase == RoastPhase.ROASTING and session.bt is not None:
             session.events.mark_event(EventType.FIRST_CRACK, elapsed, session.bt)
+            try:
+                # Artisan default: FCs -> EV=4
+                device.mark_event(4)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("EV FC error: %s", exc)
             return "FIRST CRACK"
         return None
 
     if event == InputEvent.SECOND_CRACK:
         if phase == RoastPhase.ROASTING and session.bt is not None:
             session.events.mark_event(EventType.SECOND_CRACK, elapsed, session.bt)
+            try:
+                # Artisan default: SCs -> EV=6
+                device.mark_event(6)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("EV SC error: %s", exc)
             return "SECOND CRACK"
         return None
 
@@ -164,7 +277,25 @@ def _handle_input(
             session.fsm.start_cooling(elapsed)
             if session.bt is not None:
                 session.events.mark_event(EventType.DROP, elapsed, session.bt)
-            device.set_heater(0)
+            try:
+                # Artisan default: DROP -> EV=8
+                device.mark_event(8)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("EV DROP error: %s", exc)
+            try:
+                device.set_heater(0)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("Heater off error: %s", exc)
+            session.heat_enabled = False
+            session.cooling_enabled = True
+            try:
+                device.set_heating_switch(False)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Heating switch error: %s", exc)
+            try:
+                device.set_cooling_switch(True)
+            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+                logger.warning("Cooling switch error: %s", exc)
             return "DROP"
         return None
 
@@ -175,6 +306,63 @@ def _handle_input(
         else:
             session.pid.disable()
         return f"MODE: {'AUTO' if session.auto_mode else 'MANUAL'}"
+
+    if event == InputEvent.ROASTER_PID_TOGGLE:
+        enabled = False
+        if hasattr(device, "get_state"):
+            try:
+                ah = device.get_state("AH")  # type: ignore[attr-defined]
+                enabled = bool(int(round(float(ah)))) if ah is not None else False
+            except Exception:  # noqa: BLE001
+                enabled = False
+        desired = not enabled
+        try:
+            device.set_pid_mode(desired)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("PID toggle error: %s", exc)
+            return "PID FAILED"
+        return "PID ON" if desired else "PID OFF"
+
+    if event in (InputEvent.SETPOINT_UP, InputEvent.SETPOINT_DOWN, InputEvent.SETPOINT_PREHEAT):
+        tu = "F"
+        if hasattr(device, "get_state"):
+            try:
+                tu_val = device.get_state("TU")  # type: ignore[attr-defined]
+                if isinstance(tu_val, str) and tu_val in {"C", "F"}:
+                    tu = tu_val
+            except Exception:  # noqa: BLE001
+                tu = "F"
+
+        if event == InputEvent.SETPOINT_PREHEAT:
+            target = 200.0 if tu == "C" else 400.0
+            try:
+                device.set_pid_mode(True)
+                device.set_setpoint(target)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("Preheat setpoint error: %s", exc)
+                return "PREHEAT FAILED"
+            return f"PREHEAT {target:.0f}{tu}"
+
+        step = 5.0 if tu == "C" else 25.0
+
+        current = None
+        if hasattr(device, "get_state"):
+            try:
+                ts = device.get_state("TS")  # type: ignore[attr-defined]
+                current = float(ts) if ts is not None else None
+            except Exception:  # noqa: BLE001
+                current = None
+        if current is None or current < 0:
+            current = 0.0 if tu == "C" else 32.0
+
+        new = current + (step if event == InputEvent.SETPOINT_UP else -step)
+        new = max(0.0, new)
+        try:
+            device.set_setpoint(new)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("Setpoint error: %s", exc)
+            return "SV FAILED"
+        return f"SV {new:.0f}{tu}"
 
     if event == InputEvent.PROFILE_SAVE:
         if session.samples:
@@ -188,7 +376,7 @@ def _handle_input(
     if event in (InputEvent.BURNER_UP, InputEvent.BURNER_DOWN):
         if phase == RoastPhase.IDLE:
             session.fsm.start_preheat(elapsed)
-            return "PREHEAT"
+            return "PREHEAT" if session.heat_enabled else "PREHEAT (HEAT OFF)"
 
     return None
 
@@ -230,7 +418,14 @@ def _sample(
     # PID auto-control: adjust heater based on RoR target
     if session.auto_mode and session.pid.active and session.current_ror is not None:
         pid_output = session.pid.compute(session.current_ror, 1.0)
-        device.set_heater(int(pid_output))
+        if (
+            session.heat_enabled
+            and not session.cooling_enabled
+            and session.fsm.phase not in (RoastPhase.COOLING, RoastPhase.DONE)
+        ):
+            device.set_heater(int(pid_output))
+        else:
+            device.set_heater(0)
 
     # Record sample for profile saving
     session.samples.append(
@@ -280,7 +475,7 @@ def _safe_sample(
     """
     try:
         reading = device.read_temperatures()
-    except (ConnectionError, TimeoutError, OSError) as exc:
+    except (ConnectionError, TimeoutError, OSError, RuntimeError) as exc:
         error_count += 1
         logger.warning("Read error (%d): %s", error_count, exc)
         if error_count >= _MAX_CONSECUTIVE_ERRORS:
@@ -313,8 +508,15 @@ def _safe_sample(
     if session.auto_mode and session.pid.active and session.current_ror is not None:
         pid_output = session.pid.compute(session.current_ror, 1.0)
         try:
-            device.set_heater(int(pid_output))
-        except (ConnectionError, OSError):
+            if (
+                session.heat_enabled
+                and not session.cooling_enabled
+                and session.fsm.phase not in (RoastPhase.COOLING, RoastPhase.DONE)
+            ):
+                device.set_heater(int(pid_output))
+            else:
+                device.set_heater(0)
+        except (ConnectionError, OSError, RuntimeError):
             pass  # best-effort control
 
     session.samples.append(
@@ -368,6 +570,8 @@ def _build_render_data(
         "burner": float(hal.state.burner),
         "drum": float(hal.state.drum),
         "air": float(hal.state.air),
+        "heat_enabled": session.heat_enabled,
+        "cooling_enabled": session.cooling_enabled,
         "message": status,
     }
 
@@ -449,7 +653,62 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="List available serial ports and exit",
     )
+    parser.add_argument(
+        "--serial-log",
+        action="store_true",
+        help="Log raw Kaleido RX/TX traffic (very verbose; use for debugging)",
+    )
+    parser.add_argument(
+        "--log-file",
+        default="logs/roastmaster.log",
+        help="Write logs to this file (default: logs/roastmaster.log). "
+        "Pass an empty string to disable file logging.",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (default: INFO)",
+    )
     return parser.parse_args(argv)
+
+
+def _configure_logging(*, log_file: str, level: str) -> Path | None:
+    """Configure console + (optional) file logging.
+
+    Returns the resolved log path if file logging is enabled.
+    """
+    import logging.handlers
+
+    root_level = getattr(logging, level.upper(), logging.INFO)
+    fmt = logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    handlers: list[logging.Handler] = []
+
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    console.setLevel(root_level)
+    handlers.append(console)
+
+    log_path: Path | None = None
+    if log_file:
+        log_path = Path(os.path.expanduser(log_file)).resolve()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_path,
+            maxBytes=2_000_000,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(fmt)
+        file_handler.setLevel(logging.DEBUG)
+        handlers.append(file_handler)
+
+    logging.basicConfig(level=logging.DEBUG, handlers=handlers, force=True)
+    return log_path
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -466,6 +725,10 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"{path:<30} {desc}")  # noqa: T201
         return
 
+    log_path = _configure_logging(log_file=str(args.log_file).strip(), level=args.log_level)
+    if log_path is not None:
+        logger.info("Logging to %s", log_path)
+
     # Determine which device to use
     serial_port: str | None = args.device
     if not serial_port and not args.sim:
@@ -480,10 +743,17 @@ def main(argv: list[str] | None = None) -> None:
     hal = KeyboardInput()
 
     device: RoasterDevice
+    device_label = "SIM"
     if serial_port:
         from roastmaster.serial.kaleido import KaleidoDevice
 
         raw_device: RoasterDevice = KaleidoDevice(port=serial_port, baud_rate=args.baud)
+        if args.serial_log and hasattr(raw_device, "set_logging"):
+            try:
+                raw_device.set_logging(True)  # type: ignore[attr-defined]
+                logger.info("Serial traffic logging enabled")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to enable serial traffic logging: %s", exc)
         if args.test:
             device = ReadOnlyDevice(raw_device)
             logger.info("TEST MODE (read-only) on %s", serial_port)
@@ -491,6 +761,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             device = raw_device
             logger.info("Using Kaleido device on %s", serial_port)
+        device_label = Path(serial_port).name or serial_port
     else:
         device = SimulatedRoasterDevice()
         logger.info("Using simulated device")
@@ -506,6 +777,7 @@ def main(argv: list[str] | None = None) -> None:
     message = ""
     message_expire: float = 0.0
     error_count = 0
+    debug_overlay = False
 
     # Clean shutdown on Ctrl-C
     running = True
@@ -528,6 +800,11 @@ def main(argv: list[str] | None = None) -> None:
                 if event == InputEvent.QUIT:
                     running = False
                     break
+                if event == InputEvent.HELP_TOGGLE:
+                    debug_overlay = not debug_overlay
+                    message = "DEBUG ON" if debug_overlay else "DEBUG OFF"
+                    message_expire = session.fsm.elapsed + 2.0
+                    continue
 
                 # Profile browser intercepts input while visible
                 if renderer.browser_visible:
@@ -573,13 +850,18 @@ def main(argv: list[str] | None = None) -> None:
             # 3. Send current control state to device
             state = hal.state
             try:
-                if session.fsm.phase in (RoastPhase.COOLING, RoastPhase.DONE):
+                if (
+                    session.fsm.phase in (RoastPhase.COOLING, RoastPhase.DONE)
+                    or session.cooling_enabled
+                ):
                     device.set_heater(0)
                 elif not session.auto_mode:
-                    device.set_heater(state.burner)
+                    device.set_heater(state.burner if session.heat_enabled else 0)
+                elif not session.heat_enabled:
+                    device.set_heater(0)
                 device.set_drum(state.drum)
                 device.set_fan(state.air)
-            except (ConnectionError, OSError) as exc:
+            except (ConnectionError, OSError, RuntimeError) as exc:
                 logger.warning("Control write error: %s", exc)
 
             # 4. Sample temperatures at ~1 Hz (with error handling)
@@ -599,6 +881,46 @@ def main(argv: list[str] | None = None) -> None:
 
             # 6. Render
             data = _build_render_data(session, hal, message, test_mode=test_mode)
+            data["connected"] = bool(getattr(device, "connected", False))
+            data["device_label"] = device_label
+            data["debug_visible"] = debug_overlay
+            if debug_overlay:
+                conn = "ONLINE" if data["connected"] else "OFFLINE"
+                lines = [
+                    f"DEV: {device_label}",
+                    f"CONN: {conn}",
+                    f"MODE: {'TEST' if test_mode else ('AUTO' if session.auto_mode else 'MANUAL')}",
+                    f"HEAT: {'ON' if session.heat_enabled else 'OFF'}",
+                    f"COOL: {'ON' if session.cooling_enabled else 'OFF'}",
+                    f"ERRS: {error_count}",
+                    f"BT: {session.bt:.1f}F" if session.bt is not None else "BT: --",
+                    f"ET: {session.et:.1f}F" if session.et is not None else "ET: --",
+                ]
+                if hasattr(device, "get_state"):
+                    try:
+                        tu = device.get_state("TU")  # type: ignore[attr-defined]
+                        sid = device.get_state("sid")  # type: ignore[attr-defined]
+                        hs = device.get_state("HS")  # type: ignore[attr-defined]
+                        cs = device.get_state("CS")  # type: ignore[attr-defined]
+                        ah = device.get_state("AH")  # type: ignore[attr-defined]
+                        hp = device.get_state("HP")  # type: ignore[attr-defined]
+                        ts = device.get_state("TS")  # type: ignore[attr-defined]
+                        evf = None
+                        try:
+                            evf = int(round(float(sid))) & 15 if sid is not None else None
+                        except Exception:  # noqa: BLE001
+                            evf = None
+                        lines.append(
+                            f"RPT: TU={tu} SID={sid} EVF={evf} "
+                            f"HS={hs} CS={cs} AH={ah} HP={hp} TS={ts}"
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        lines.append(f"RPT: <error {exc}>")
+                if log_path is not None:
+                    lines.append(f"LOG: {log_path.name}")
+                if serial_port and args.serial_log:
+                    lines.append("SERIAL: RAW LOG ON")
+                data["debug_lines"] = lines
             renderer.render(data)
             pygame.display.flip()
             clock.tick(FPS)

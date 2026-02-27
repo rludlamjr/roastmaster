@@ -116,8 +116,8 @@ Variables are categorised into three types. The category governs both how outgoi
 
 Set membership: `sid`, `HP`, `FC`, `RC`, `AH`, `HS`, `EV`, `CS`
 
-Outgoing encoding: `f'{float(value):.0f}'`
-This converts the value to a float, formats with zero decimal places (rounds to nearest integer), and produces a plain integer string (e.g. `"75"`, `"0"`, `"1"`).
+Outgoing encoding: `f'{float(value):.1f}'.rstrip('0').rstrip('.')`
+Artisan sends these as *numeric strings with up to one decimal* (trailing zeros stripped). In practice most values are integers, but this encoding allows higher precision (used by ramping / slider actions).
 
 Incoming parsing: `int(round(float(value)))` — the string is parsed as float and rounded to int.
 
@@ -127,8 +127,8 @@ Source: `intVar()` lines 131-132; `create_msg()` lines 523-525; `set_state()` li
 
 All variables that are neither integer nor string variables (i.e. `BT`, `ET`, `AT`, `TS` and any unrecognised tag).
 
-Outgoing encoding: `f'{float(value):.1f}'.rstrip('0').rstrip('.')`
-This formats to one decimal place then strips trailing zeros and any trailing decimal point. Examples: `185.3` → `"185.3"`, `200.0` → `"200"`, `185.30` → `"185.3"`.
+Outgoing encoding: `f'{float(value):.0f}'`
+Artisan sends these as *integer strings* (decimals removed, rounding applied). For example, `TS 185.5` is encoded as `"186"`.
 
 Incoming parsing: `float(value)`. If conversion fails the raw string is stored as-is.
 
@@ -159,9 +159,10 @@ Source: `strVar()` lines 139-140; `create_msg()` lines 519-521; `set_state()` li
 | `FC` | `0`-`100` | Set fan / air speed as a percentage integer. |
 | `RC` | `0`-`100` | Set drum speed as a percentage integer. |
 | `AH` | `0` or `1` | PID auto-heat: `1` = on, `0` = off. |
-| `TS` | float | Set PID target / setpoint temperature. Encoded as a float (one decimal, trailing zeros stripped). |
+| `TS` | float | Set PID target / setpoint temperature. Encoded as an integer string (rounded; decimals removed). |
 | `EV` | `2` | Mark turning point event. Value `2` signifies TP. |
 | `HS` | `0` or `1` | Heating switch: `1` = on, `0` = off. |
+| `CS` | `0` or `1` | Cooling switch: `1` = on, `0` = off. |
 
 Notes:
 
@@ -187,6 +188,7 @@ Source: `create_msg()` lines 514-532; `getBTET()` line 95; `markTP()` line 597; 
 | `RC` | int | 0-100 | Current drum speed percentage. |
 | `AH` | int | 0 or 1 | Auto-heat (PID) mode: `1` = active, `0` = off. |
 | `HS` | int | 0 or 1 | Heating switch state: `1` = on, `0` = off. |
+| `CS` | int | 0 or 1 | Cooling switch state: `1` = on, `0` = off. |
 | `SN` | string | — | Device serial number. Returned in response to `CL AR` and during initialisation. |
 | `TU` | string | `C` or `F` | Temperature unit currently in use on the device. |
 

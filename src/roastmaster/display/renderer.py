@@ -14,6 +14,15 @@ Expected data dict keys
     drum        : float         – Drum speed % (0-100)
     air         : float         – Air % (0-100)
     message     : str           – Optional status message
+    heat_enabled : bool        – Heating enabled (device toggle)
+    cooling_enabled : bool     – Cooling enabled (device toggle)
+
+Optional debug keys
+-------------------
+    connected     : bool        – Device connection status
+    device_label  : str         – Short device identifier (e.g. ttyUSB0, SIM)
+    debug_visible : bool        – Whether to show debug overlay
+    debug_lines   : list[str]   – Debug overlay text lines
 """
 
 from __future__ import annotations
@@ -222,11 +231,34 @@ class Renderer:
         self._control.draw(surface)
 
         # Info panel
-        self._draw_info_panel(surface, phase, elapsed)
+        connected = data.get("connected")
+        device_label = data.get("device_label")
+        heat_enabled = data.get("heat_enabled")
+        cooling_enabled = data.get("cooling_enabled")
+        self._draw_info_panel(
+            surface,
+            phase,
+            elapsed,
+            connected=(bool(connected) if connected is not None else None),
+            device_label=(str(device_label) if device_label is not None else None),
+            heat_enabled=(bool(heat_enabled) if heat_enabled is not None else None),
+            cooling_enabled=(bool(cooling_enabled) if cooling_enabled is not None else None),
+        )
 
         # Status bar
         self._status.update(phase, elapsed, message)
         self._status.draw(surface)
+
+        # Debug overlay (below profile browser)
+        debug_visible = bool(data.get("debug_visible", False))
+        debug_lines = data.get("debug_lines")
+        if (
+            debug_visible
+            and not self._browser_visible
+            and isinstance(debug_lines, list)
+            and debug_lines
+        ):
+            self._draw_debug_overlay(surface, [str(x) for x in debug_lines])
 
         # Profile browser overlay (on top of everything)
         if self._browser_visible:
@@ -263,22 +295,95 @@ class Renderer:
         )
 
     def _draw_info_panel(
-        self, surface: pygame.Surface, phase: str, elapsed: float
+        self,
+        surface: pygame.Surface,
+        phase: str,
+        elapsed: float,
+        *,
+        connected: bool | None = None,
+        device_label: str | None = None,
+        heat_enabled: bool | None = None,
+        cooling_enabled: bool | None = None,
     ) -> None:
         """Draw the small info panel to the right of the control bars."""
         r = self._info_rect
         pygame.draw.rect(surface, theme.BG, r)
         pygame.draw.rect(surface, theme.GREEN_DIM, r, 1)
 
+        if connected is True:
+            conn = "ONLINE"
+        elif connected is False:
+            conn = "OFFLINE"
+        else:
+            conn = "CONN ?"
+        dev = device_label or ""
+        conn_line = f"{dev} {conn}".strip()
+
+        if heat_enabled is True:
+            heat = "ON"
+        elif heat_enabled is False:
+            heat = "OFF"
+        else:
+            heat = "?"
+        if cooling_enabled is True:
+            cool = "ON"
+        elif cooling_enabled is False:
+            cool = "OFF"
+        else:
+            cool = "?"
+        switches_line = f"H:{heat} C:{cool}"
+
         lines = [
             phase,
             f"{int(elapsed) // 60:02d}:{int(elapsed) % 60:02d}",
-            "640x480",
+            conn_line,
+            switches_line,
         ]
         pad = 4
+        max_w = r.width - pad * 2
         y = r.y + pad
         for line in lines:
+            line = self._truncate_to_width(line, max_w, scale=1)
             lw = text_width(line, scale=1)
             lx = r.x + (r.width - lw) // 2
             render_text(surface, line, lx, y, theme.TEXT_DIM, scale=1)
             y += text_height(1) + 3
+
+    @staticmethod
+    def _truncate_to_width(text: str, max_width_px: int, *, scale: int = 1) -> str:
+        """Truncate text to fit within a pixel width using the current bitmap font."""
+        if text_width(text, scale=scale) <= max_width_px:
+            return text
+
+        suffix = "..."
+        if text_width(suffix, scale=scale) > max_width_px:
+            return ""
+
+        trimmed = text
+        while trimmed and text_width(trimmed + suffix, scale=scale) > max_width_px:
+            trimmed = trimmed[:-1]
+        return (trimmed + suffix) if trimmed else suffix
+
+    def _draw_debug_overlay(self, surface: pygame.Surface, lines: list[str]) -> None:
+        """Draw a debug overlay box inside the graph area."""
+        pad = 6
+        scale = 1
+        x = _MARGIN + 6
+        y = _GRAPH_TOP + 6
+
+        max_content_w = SCREEN_WIDTH - x - _MARGIN - pad * 2
+        safe_lines = [self._truncate_to_width(line, max_content_w, scale=scale) for line in lines]
+
+        line_h = text_height(scale) + 2
+        content_w = max((text_width(line, scale=scale) for line in safe_lines), default=0)
+        w = content_w + pad * 2
+        h = len(safe_lines) * line_h + pad * 2
+
+        rect = pygame.Rect(x, y, w, h)
+        pygame.draw.rect(surface, theme.BG, rect)
+        pygame.draw.rect(surface, theme.GREEN_MEDIUM, rect, 1)
+
+        ty = rect.y + pad
+        for line in safe_lines:
+            render_text(surface, line, rect.x + pad, ty, theme.TEXT_DIM, scale=scale)
+            ty += line_h

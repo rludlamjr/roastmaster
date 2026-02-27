@@ -22,6 +22,16 @@ class InputEvent(Enum):
     AIR_UP = auto()
     AIR_DOWN = auto()
 
+    # Device toggles (Kaleido: HS/CS)
+    HEAT_TOGGLE = auto()  # Toggle heating switch
+    COOL_TOGGLE = auto()  # Toggle cooling switch
+
+    # Roaster PID / setpoint (Kaleido: AH/TS)
+    ROASTER_PID_TOGGLE = auto()  # Toggle roaster PID (auto heat) mode
+    SETPOINT_UP = auto()  # Increase roaster temperature setpoint
+    SETPOINT_DOWN = auto()  # Decrease roaster temperature setpoint
+    SETPOINT_PREHEAT = auto()  # Set a preheat setpoint
+
     # Mode
     MODE_TOGGLE = auto()  # Toggle manual/auto
 

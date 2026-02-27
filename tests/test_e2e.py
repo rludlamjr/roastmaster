@@ -100,7 +100,7 @@ class TestFullRoastE2E:
         session.fsm.elapsed = 1.0
         msg = _handle_input(InputEvent.BURNER_UP, session, device, hal)
         assert session.fsm.phase == RoastPhase.PREHEAT
-        assert msg == "PREHEAT"
+        assert msg == "PREHEAT (HEAT OFF)"
 
         # ----------------------------------------------------------
         # 3. Preheat the roaster for 120 seconds

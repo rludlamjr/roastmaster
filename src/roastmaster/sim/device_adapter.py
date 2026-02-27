@@ -252,6 +252,26 @@ class SimulatedRoasterDevice:
         """
         self._sim.set_fan(speed)
 
+    def set_heating_switch(self, enabled: bool) -> None:
+        """No-op for the simulator (real devices may gate heater output)."""
+        return None
+
+    def set_cooling_switch(self, enabled: bool) -> None:
+        """No-op for the simulator."""
+        return None
+
+    def set_pid_mode(self, enabled: bool) -> None:
+        """No-op for the simulator."""
+        return None
+
+    def set_setpoint(self, temp: float) -> None:
+        """No-op for the simulator."""
+        return None
+
+    def mark_event(self, code: int) -> None:
+        """No-op for the simulator."""
+        return None
+
     def __repr__(self) -> str:
         status = "connected" if self._connected else "disconnected"
         return f"SimulatedRoasterDevice({self._sim!r}, status={status})"
