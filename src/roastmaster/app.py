@@ -22,6 +22,7 @@ import pygame
 
 from roastmaster.config import FPS, SCREEN_HEIGHT, SCREEN_WIDTH, WINDOW_TITLE
 from roastmaster.display.renderer import Renderer
+from roastmaster.display.units import f_to_c
 from roastmaster.engine.events import EventManager, EventType
 from roastmaster.engine.pid import PIDController
 from roastmaster.engine.roast import RoastPhase, RoastStateMachine
@@ -145,7 +146,7 @@ class RoastSession:
 
 _DEFAULT_MESSAGE = (
     "H:HEAT  C:COOL  P:PID  [:SV-  ]:SV+  T:PREHEAT  "
-    "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  Q:QUIT  F12:DEBUG"
+    "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  U:UNIT  R:RESET  Q:QUIT  F12:DEBUG"
 )
 
 
@@ -172,6 +173,13 @@ def _handle_input(
                 return "COOL OFF FAILED"
             session.cooling_enabled = False
 
+            # Enable roaster PID — the Kaleido requires PID active (AH=1)
+            # before the heating element will actually turn on.
+            try:
+                device.set_pid_mode(True)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("PID on error: %s", exc)
+
             heat_ack = True
             try:
                 device.set_heating_switch(True)
@@ -194,6 +202,10 @@ def _handle_input(
             device.set_heater(0)
         except (ConnectionError, OSError, RuntimeError) as exc:
             logger.warning("Heater off error: %s", exc)
+        try:
+            device.set_pid_mode(False)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("PID off error: %s", exc)
         heat_ack = True
         try:
             device.set_heating_switch(False)
@@ -581,6 +593,31 @@ def _build_render_data(
 # ---------------------------------------------------------------------------
 
 
+def _show_title_screen(screen: pygame.Surface, clock: pygame.time.Clock) -> None:
+    """Display the title screen image and wait for any key or button press."""
+    # Resolve asset path relative to the package (src/roastmaster/../../assets)
+    asset_path = Path(__file__).resolve().parent.parent.parent / "assets" / "ARS-TITLE.png"
+    try:
+        title_img = pygame.image.load(str(asset_path)).convert()
+    except (pygame.error, FileNotFoundError):
+        logger.warning("Title screen image not found at %s, skipping", asset_path)
+        return
+
+    screen.blit(title_img, (0, 0))
+    pygame.display.flip()
+
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type in (pygame.KEYDOWN, pygame.JOYBUTTONDOWN, pygame.MOUSEBUTTONDOWN):
+                waiting = False
+                break
+        clock.tick(FPS)
+
+
 def _get_serial_ports() -> list[tuple[str, str]]:
     """Return a list of (device_path, description) for available serial ports."""
     from serial.tools.list_ports import comports
@@ -595,7 +632,7 @@ def _select_device() -> str | None:
     """Interactive device selector. Returns a serial port path, or None for simulator."""
     ports = _get_serial_ports()
 
-    print("\n  ROASTMASTER — Device Selection\n")  # noqa: T201
+    print("\n  CONAR 255 A.R.S. — Device Selection\n")  # noqa: T201
     print("  [0]  Simulator (no hardware)")  # noqa: T201
     for i, (path, desc) in enumerate(ports, start=1):
         label = f"{desc}  ({path})" if desc != path else path
@@ -739,6 +776,8 @@ def main(argv: list[str] | None = None) -> None:
     pygame.display.set_caption(WINDOW_TITLE)
     clock = pygame.time.Clock()
 
+    _show_title_screen(screen, clock)
+
     renderer = Renderer(surface=screen, window_seconds=600.0)
     hal = KeyboardInput()
 
@@ -805,6 +844,20 @@ def main(argv: list[str] | None = None) -> None:
                     message = "DEBUG ON" if debug_overlay else "DEBUG OFF"
                     message_expire = session.fsm.elapsed + 2.0
                     continue
+                if event == InputEvent.UNIT_TOGGLE:
+                    unit_label = renderer.toggle_units()
+                    message = f"DISPLAY: {unit_label}"
+                    message_expire = session.fsm.elapsed + 2.0
+                    continue
+                if event == InputEvent.ROAST_RESET:
+                    session.reset()
+                    start_ticks = pygame.time.get_ticks()
+                    last_sample_s = -1
+                    error_count = 0
+                    renderer.reset_graph()
+                    message = "ROAST RESET"
+                    message_expire = session.fsm.elapsed + 3.0
+                    continue
 
                 # Profile browser intercepts input while visible
                 if renderer.browser_visible:
@@ -841,6 +894,8 @@ def main(argv: list[str] | None = None) -> None:
                     profiles = profile_mgr.list_profiles()
                     renderer.show_browser(profiles)
                     msg = None
+                if msg == "CHARGE MARKED":
+                    renderer.set_charge_time(session.fsm.roast_start_time)
                 if msg:
                     message = msg
                     message_expire = session.fsm.elapsed + 3.0
@@ -879,7 +934,14 @@ def main(argv: list[str] | None = None) -> None:
             if message and session.fsm.elapsed > message_expire:
                 message = ""
 
-            # 6. Render
+            # 6. Update event markers on the graph
+            if session.events.events:
+                renderer.set_events([
+                    (e.elapsed, e.temperature, e.event_type.name)
+                    for e in session.events.events
+                ])
+
+            # 7. Render
             data = _build_render_data(session, hal, message, test_mode=test_mode)
             data["connected"] = bool(getattr(device, "connected", False))
             data["device_label"] = device_label
@@ -893,8 +955,20 @@ def main(argv: list[str] | None = None) -> None:
                     f"HEAT: {'ON' if session.heat_enabled else 'OFF'}",
                     f"COOL: {'ON' if session.cooling_enabled else 'OFF'}",
                     f"ERRS: {error_count}",
-                    f"BT: {session.bt:.1f}F" if session.bt is not None else "BT: --",
-                    f"ET: {session.et:.1f}F" if session.et is not None else "ET: --",
+                    (
+                        f"BT: {f_to_c(session.bt):.1f}C"
+                        if renderer.use_celsius
+                        else f"BT: {session.bt:.1f}F"
+                    )
+                    if session.bt is not None
+                    else "BT: --",
+                    (
+                        f"ET: {f_to_c(session.et):.1f}C"
+                        if renderer.use_celsius
+                        else f"ET: {session.et:.1f}F"
+                    )
+                    if session.et is not None
+                    else "ET: --",
                 ]
                 if hasattr(device, "get_state"):
                     try:

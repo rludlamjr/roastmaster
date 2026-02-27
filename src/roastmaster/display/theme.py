@@ -32,3 +32,9 @@ TRACE_ROR = AMBER_BRIGHT     # Rate of rise - amber to distinguish
 REF_BT = GREEN_DIM
 REF_ET = GREEN_FAINT
 REF_ROR = AMBER_DIM
+
+# Projection line
+PROJECTION_BT = AMBER_MEDIUM
+
+# Event markers (CHARGE, FC, SC, DROP, TP)
+EVENT_MARKER = AMBER_BRIGHT

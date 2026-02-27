@@ -47,6 +47,8 @@ class InputEvent(Enum):
     # System
     QUIT = auto()
     HELP_TOGGLE = auto()
+    UNIT_TOGGLE = auto()
+    ROAST_RESET = auto()
 
 
 @dataclass

@@ -137,9 +137,45 @@ class Renderer:
         )
         self._browser_visible = False
 
+        # Unit toggle — default to Celsius display
+        self._use_celsius: bool = True
+        self._graph.use_celsius = self._use_celsius
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    @property
+    def use_celsius(self) -> bool:
+        return self._use_celsius
+
+    def toggle_units(self) -> str:
+        """Flip between Celsius and Fahrenheit display. Returns 'C' or 'F'."""
+        self._use_celsius = not self._use_celsius
+        self._graph.use_celsius = self._use_celsius
+        return "C" if self._use_celsius else "F"
+
+    def reset_graph(self) -> None:
+        """Clear live graph traces for a new roast."""
+        self._graph.clear_traces()
+        self._graph.clear_charge_time()
+        self._graph.clear_events()
+
+    def set_charge_time(self, t: float) -> None:
+        """Set the charge time offset on the graph."""
+        self._graph.set_charge_time(t)
+
+    def clear_charge_time(self) -> None:
+        """Remove the charge time offset from the graph."""
+        self._graph.clear_charge_time()
+
+    def set_events(self, events: list[tuple[float, float, str]]) -> None:
+        """Set event markers on the graph."""
+        self._graph.set_events(events)
+
+    def clear_events(self) -> None:
+        """Remove all event markers from the graph."""
+        self._graph.clear_events()
 
     def set_reference_profile(self, samples: list[ProfileSample]) -> None:
         """Load a reference profile into the graph for comparison."""
@@ -214,13 +250,13 @@ class Renderer:
         self._draw_title(surface, elapsed)
 
         # Readouts
-        self._bt_readout.update(bt)
+        self._bt_readout.update(bt, use_celsius=self._use_celsius)
         self._bt_readout.draw(surface)
 
-        self._et_readout.update(et)
+        self._et_readout.update(et, use_celsius=self._use_celsius)
         self._et_readout.draw(surface)
 
-        self._ror_readout.update(ror)
+        self._ror_readout.update(ror, use_celsius=self._use_celsius)
         self._ror_readout.draw(surface)
 
         # Graph
@@ -274,7 +310,7 @@ class Renderer:
         pygame.draw.rect(surface, theme.BG, title_rect)
         pygame.draw.rect(surface, theme.GREEN_DIM, title_rect, 1)
 
-        title = "ROASTMASTER"
+        title = "CONAR MODEL 255 - A.R.S."
         tw = text_width(title, scale=2)
         tx = title_rect.x + (title_rect.width - tw) // 2
         ty = title_rect.y + (title_rect.height - text_height(2)) // 2

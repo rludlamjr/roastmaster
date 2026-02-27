@@ -61,6 +61,11 @@ class TestTheme:
         assert hasattr(theme, "REF_ET")
         assert hasattr(theme, "REF_ROR")
 
+    def test_projection_bt_color_defined(self):
+        from roastmaster.display import theme
+
+        assert theme.PROJECTION_BT == theme.AMBER_MEDIUM
+
 
 # ---------------------------------------------------------------------------
 # Font tests
@@ -192,6 +197,35 @@ class TestGraphWidget:
             gw.add_point("BT", float(t), 300.0)
         # Points should be pruned to roughly 1.5 * window_seconds back from last
         assert len(gw._traces["BT"]) < 100
+
+    def test_clear_traces(self, pygame_surface):
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 60, 5):
+            gw.add_point("BT", float(t), 200.0 + t)
+            gw.add_point("ET", float(t), 250.0 + t)
+            gw.add_point("RoR", float(t), 8.0)
+        assert len(gw._traces["BT"]) > 0
+        gw.clear_traces()
+        assert len(gw._traces["BT"]) == 0
+        assert len(gw._traces["ET"]) == 0
+        assert len(gw._traces["RoR"]) == 0
+
+    def test_clear_traces_preserves_reference(self, pygame_surface):
+        from roastmaster.display.widgets import GraphWidget
+        from roastmaster.profiles.schema import ProfileSample
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        samples = [
+            ProfileSample(elapsed=float(t), bt=200.0 + t, et=250.0 + t, ror=8.0)
+            for t in range(10)
+        ]
+        gw.set_reference(samples)
+        gw.add_point("BT", 0.0, 200.0)
+        gw.clear_traces()
+        assert len(gw._traces["BT"]) == 0
+        assert gw.has_reference
 
 
 class TestNumericReadout:
@@ -390,6 +424,108 @@ class TestGraphReferenceTrace:
         assert gw._ref_traces["BT"][0].value == 200.0
         assert gw._ref_traces["BT"][1].value == 210.0
         assert gw._ref_traces["RoR"][1].value == 6.0
+
+
+class TestBTProjection:
+    """Tests for BT projection line drawing."""
+
+    def test_draw_with_bt_and_ror_data(self, pygame_surface):
+        """Projection line draws when both BT and RoR data are present."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 120, 5):
+            gw.add_point("BT", float(t), 200.0 + t * 0.5)
+            gw.add_point("RoR", float(t), 10.0)
+        gw.draw(pygame_surface, elapsed=120.0)
+
+    def test_no_crash_without_ror(self, pygame_surface):
+        """No crash when RoR trace is empty."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 60, 5):
+            gw.add_point("BT", float(t), 200.0 + t)
+        gw.draw(pygame_surface, elapsed=60.0)
+
+    def test_no_crash_without_bt(self, pygame_surface):
+        """No crash when BT trace is empty."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 60, 5):
+            gw.add_point("RoR", float(t), 10.0)
+        gw.draw(pygame_surface, elapsed=60.0)
+
+    def test_zero_ror_skips_projection(self, pygame_surface):
+        """Near-zero RoR should skip drawing projection."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 60, 5):
+            gw.add_point("BT", float(t), 300.0)
+            gw.add_point("RoR", float(t), 0.0)
+        gw.draw(pygame_surface, elapsed=60.0)
+
+    def test_negative_ror(self, pygame_surface):
+        """Negative RoR should project downward without error."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 60, 5):
+            gw.add_point("BT", float(t), 400.0 - t * 0.5)
+            gw.add_point("RoR", float(t), -5.0)
+        gw.draw(pygame_surface, elapsed=60.0)
+
+    def test_clamp_at_temp_max(self, pygame_surface):
+        """Projection line should clamp at temp_max, not extend beyond."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200), temp_max=500.0)
+        gw.add_point("BT", 0.0, 490.0)
+        gw.add_point("BT", 5.0, 495.0)
+        gw.add_point("RoR", 0.0, 60.0)
+        gw.add_point("RoR", 5.0, 60.0)
+        gw.draw(pygame_surface, elapsed=5.0)
+
+
+class TestVisibleWindow:
+    """Tests for the fixed-width visible window and right-axis labels."""
+
+    def test_right_margin_value(self, pygame_surface):
+        """Right margin should be 36 to accommodate temperature labels."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        assert gw._margin_right == 36
+
+    def test_visible_range_early(self, pygame_surface):
+        """Before window_seconds, right edge stays at window_seconds."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200), window_seconds=600.0)
+        t_start, t_end = gw._visible_range(120.0)
+        assert t_start == 0.0
+        assert t_end == 600.0
+
+    def test_visible_range_scrolls(self, pygame_surface):
+        """After window_seconds, the window scrolls with elapsed."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200), window_seconds=600.0)
+        t_start, t_end = gw._visible_range(720.0)
+        assert t_start == 120.0
+        assert t_end == 720.0
+
+    def test_draw_with_right_labels(self, pygame_surface):
+        """Drawing with data should render right-axis temp labels without error."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 60, 5):
+            gw.add_point("BT", float(t), 200.0 + t)
+            gw.add_point("RoR", float(t), 10.0)
+        gw.draw(pygame_surface, elapsed=60.0)
 
 
 class TestRendererReferenceProfile:
@@ -646,3 +782,282 @@ class TestRenderer:
                 "air": 0.0,
             }
         )
+
+    def test_reset_graph(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        for t in range(0, 30, 5):
+            r.push_data({"elapsed": float(t), "bt": 200.0 + t, "et": 250.0 + t, "ror": 5.0})
+        assert len(r._graph._traces["BT"]) > 0
+        r.reset_graph()
+        assert len(r._graph._traces["BT"]) == 0
+        # Render after reset should not raise
+        r.render({"elapsed": 0.0, "phase": "IDLE"})
+
+
+class TestUnitToggle:
+    """Tests for Fahrenheit / Celsius display toggle."""
+
+    def test_renderer_defaults_to_celsius(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        assert r.use_celsius is True
+
+    def test_toggle_units_returns_label(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        # Default is celsius, toggling should switch to F
+        assert r.toggle_units() == "F"
+        assert r.toggle_units() == "C"
+
+    def test_graph_use_celsius_synced(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        assert r._graph.use_celsius is True
+        r.toggle_units()
+        assert r._graph.use_celsius is False
+        r.toggle_units()
+        assert r._graph.use_celsius is True
+
+    def test_render_in_celsius_mode(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        # Default is celsius
+        r.render({
+            "elapsed": 60.0,
+            "bt": 350.0,
+            "et": 400.0,
+            "ror": 12.0,
+            "phase": "ROASTING",
+            "burner": 50.0,
+            "drum": 50.0,
+            "air": 50.0,
+        })
+
+    def test_render_in_fahrenheit_mode(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.toggle_units()  # switch to F
+        r.render({
+            "elapsed": 60.0,
+            "bt": 350.0,
+            "et": 400.0,
+            "ror": 12.0,
+            "phase": "ROASTING",
+            "burner": 50.0,
+            "drum": 50.0,
+            "air": 50.0,
+        })
+
+    def test_numeric_readout_celsius(self, pygame_surface):
+        from roastmaster.display.widgets import NumericReadout
+
+        nr = NumericReadout(rect=(0, 0, 100, 60), label="BT", unit="F")
+        nr.update(212.0, use_celsius=True)
+        nr.draw(pygame_surface)  # Should not raise
+
+
+# ---------------------------------------------------------------------------
+# Charge time offset tests
+# ---------------------------------------------------------------------------
+
+
+class TestChargeTimeOffset:
+    def test_charge_time_none_by_default(self, pygame_surface):
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        assert gw._charge_time is None
+
+    def test_set_charge_time(self, pygame_surface):
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        gw.set_charge_time(120.0)
+        assert gw._charge_time == 120.0
+
+    def test_clear_charge_time(self, pygame_surface):
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        gw.set_charge_time(120.0)
+        gw.clear_charge_time()
+        assert gw._charge_time is None
+
+    def test_visible_range_before_charge(self, pygame_surface):
+        """Without charge time, visible range behaves as before."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200), window_seconds=600.0)
+        t_start, t_end = gw._visible_range(120.0)
+        assert t_start == 0.0
+        assert t_end == 600.0
+
+    def test_visible_range_after_charge(self, pygame_surface):
+        """With charge time set, t_start anchors at charge_time."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200), window_seconds=600.0)
+        gw.set_charge_time(120.0)
+        t_start, t_end = gw._visible_range(200.0)
+        # t_end = max(120 + 600, 200) = 720
+        assert t_end == 720.0
+        assert t_start == 120.0
+
+    def test_visible_range_scrolls_after_charge(self, pygame_surface):
+        """After elapsed exceeds charge_time + window, window scrolls."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200), window_seconds=600.0)
+        gw.set_charge_time(60.0)
+        t_start, t_end = gw._visible_range(900.0)
+        # t_end = max(60 + 600, 900) = 900
+        assert t_end == 900.0
+        assert t_start == 300.0
+
+    def test_draw_with_charge_time(self, pygame_surface):
+        """Drawing with charge time set should not crash."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        gw.set_charge_time(60.0)
+        for t in range(0, 120, 5):
+            gw.add_point("BT", float(t), 200.0 + t)
+        gw.draw(pygame_surface, elapsed=120.0)
+
+
+# ---------------------------------------------------------------------------
+# Event marker tests
+# ---------------------------------------------------------------------------
+
+
+class TestEventMarkers:
+    def test_no_markers_by_default(self, pygame_surface):
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        assert gw._event_markers == []
+
+    def test_set_events(self, pygame_surface):
+        """set_events maps event type names to short labels."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        gw.set_events([
+            (60.0, 200.0, "CHARGE"),
+            (180.0, 350.0, "FIRST_CRACK"),
+        ])
+        assert len(gw._event_markers) == 2
+        assert gw._event_markers[0] == (60.0, 200.0, "CH")
+        assert gw._event_markers[1] == (180.0, 350.0, "FC")
+
+    def test_clear_events(self, pygame_surface):
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        gw.set_events([(60.0, 200.0, "CHARGE")])
+        gw.clear_events()
+        assert gw._event_markers == []
+
+    def test_draw_with_event_markers(self, pygame_surface):
+        """Drawing with event markers should not crash."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        for t in range(0, 300, 5):
+            gw.add_point("BT", float(t), 200.0 + t * 0.5)
+        gw.set_events([
+            (60.0, 230.0, "CHARGE"),
+            (180.0, 290.0, "FIRST_CRACK"),
+        ])
+        gw.draw(pygame_surface, elapsed=300.0)
+
+    def test_draw_markers_outside_range(self, pygame_surface):
+        """Markers outside visible range should not crash."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200), window_seconds=60.0)
+        gw.set_events([(1000.0, 400.0, "DROP")])
+        gw.draw(pygame_surface, elapsed=30.0)
+
+    def test_event_label_mapping(self, pygame_surface):
+        """All standard event types map to correct short labels."""
+        from roastmaster.display.widgets import GraphWidget
+
+        gw = GraphWidget(rect=(0, 0, 400, 200))
+        gw.set_events([
+            (10.0, 200.0, "CHARGE"),
+            (30.0, 190.0, "TURNING_POINT"),
+            (180.0, 350.0, "FIRST_CRACK"),
+            (240.0, 400.0, "SECOND_CRACK"),
+            (300.0, 410.0, "DROP"),
+        ])
+        labels = [m[2] for m in gw._event_markers]
+        assert labels == ["CH", "TP", "FC", "SC", "DR"]
+
+
+# ---------------------------------------------------------------------------
+# Renderer charge time tests
+# ---------------------------------------------------------------------------
+
+
+class TestRendererChargeTime:
+    def test_set_charge_time(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.set_charge_time(90.0)
+        assert r._graph._charge_time == 90.0
+
+    def test_clear_charge_time(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.set_charge_time(90.0)
+        r.clear_charge_time()
+        assert r._graph._charge_time is None
+
+    def test_reset_graph_clears_charge_time(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.set_charge_time(90.0)
+        r.reset_graph()
+        assert r._graph._charge_time is None
+
+
+# ---------------------------------------------------------------------------
+# Renderer event marker tests
+# ---------------------------------------------------------------------------
+
+
+class TestRendererEventMarkers:
+    def test_set_events(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.set_events([(60.0, 200.0, "CHARGE")])
+        assert len(r._graph._event_markers) == 1
+        assert r._graph._event_markers[0][2] == "CH"
+
+    def test_clear_events(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.set_events([(60.0, 200.0, "CHARGE")])
+        r.clear_events()
+        assert r._graph._event_markers == []
+
+    def test_reset_graph_clears_events(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.set_events([(60.0, 200.0, "CHARGE")])
+        r.reset_graph()
+        assert r._graph._event_markers == []

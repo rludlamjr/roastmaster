@@ -1,0 +1,31 @@
+[Unit]
+Description=CONAR Model 255 Advanced Roasting System
+After=multi-user.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+
+# SDL framebuffer / DRM access
+Environment=SDL_VIDEODRIVER=kmsdrm
+Environment=SDL_AUDIODRIVER=dummy
+Environment=HOME=/home/pi
+
+# Path to the uv-managed venv runner
+ExecStart=/home/pi/.local/bin/uv run --project /home/pi/conar255 roastmaster --sim
+WorkingDirectory=/home/pi/conar255
+
+# Restart on crash (3 second cooldown)
+Restart=on-failure
+RestartSec=3
+
+# Give access to display, input, and serial devices
+SupplementaryGroups=video input dialout render
+
+# Keep stdout/stderr in journalctl
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
