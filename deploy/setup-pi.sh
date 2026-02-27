@@ -6,31 +6,39 @@
 #
 set -euo pipefail
 
-APP_DIR="/home/pi/conar255"
-SERVICE_FILE="$APP_DIR/deploy/conar255.service"
-PI_USER="pi"
+# Auto-detect the user who invoked sudo and their home directory
+PI_USER="${SUDO_USER:-pi}"
+PI_HOME=$(eval echo "~$PI_USER")
+APP_DIR="$PI_HOME/conar255"
+SERVICE_TEMPLATE="$APP_DIR/deploy/conar255.service"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: Run this script with sudo"
     exit 1
 fi
 
-if [ ! -f "$SERVICE_FILE" ]; then
-    echo "ERROR: Service file not found at $SERVICE_FILE"
+if [ ! -f "$SERVICE_TEMPLATE" ]; then
+    echo "ERROR: Service file not found at $SERVICE_TEMPLATE"
     echo "       Make sure the repo is cloned to ~/conar255"
     exit 1
 fi
 
 echo "=== CONAR 255 A.R.S. — Pi Setup ==="
+echo "  User: $PI_USER"
+echo "  Home: $PI_HOME"
+echo "  App:  $APP_DIR"
 echo ""
 
-# 1. Ensure pi user is in the right groups
-echo "[1/6] Adding pi user to device groups..."
+# 1. Ensure user is in the right groups
+echo "[1/6] Adding $PI_USER to device groups..."
 usermod -aG video,input,dialout,render "$PI_USER" 2>/dev/null || true
 
-# 2. Install the systemd service
+# 2. Install the systemd service (fill in user/path placeholders)
 echo "[2/6] Installing systemd service..."
-cp "$SERVICE_FILE" /etc/systemd/system/conar255.service
+sed -e "s|__USER__|$PI_USER|g" \
+    -e "s|__HOME__|$PI_HOME|g" \
+    -e "s|__APP_DIR__|$APP_DIR|g" \
+    "$SERVICE_TEMPLATE" > /etc/systemd/system/conar255.service
 systemctl daemon-reload
 
 # 3. Enable the service to start on boot
