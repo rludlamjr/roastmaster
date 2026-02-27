@@ -4,19 +4,17 @@
 [Unit]
 Description=CONAR Model 255 Advanced Roasting System
 After=multi-user.target
+Conflicts=getty@tty1.service
 
 [Service]
 Type=simple
 User=__USER__
 Group=__USER__
 
-# SDL framebuffer / DRM access
-Environment=SDL_VIDEODRIVER=kmsdrm
-Environment=SDL_AUDIODRIVER=dummy
 Environment=HOME=__HOME__
 
-# Path to the uv-managed venv runner
-ExecStart=__HOME__/.local/bin/uv run --project __APP_DIR__ roastmaster --sim
+# Start X server with no cursor, running our app directly
+ExecStart=/usr/bin/xinit __APP_DIR__/deploy/start-x.local.sh -- :0 vt1 -nocursor -quiet
 WorkingDirectory=__APP_DIR__
 
 # Restart on crash (3 second cooldown)
@@ -24,9 +22,11 @@ Restart=on-failure
 RestartSec=3
 
 # Give access to display, input, and serial devices
-SupplementaryGroups=video input dialout render
+SupplementaryGroups=video input dialout render tty
 
-# Keep stdout/stderr in journalctl
+# Allow X to access the tty
+TTYPath=/dev/tty1
+StandardInput=tty
 StandardOutput=journal
 StandardError=journal
 
