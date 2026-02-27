@@ -36,7 +36,8 @@ usermod -aG video,input,dialout,render,tty "$PI_USER" 2>/dev/null || true
 
 # 2. Fill in placeholders in start-x.sh
 echo "[2/7] Installing start-x.sh..."
-sed -e "s|__HOME__|$PI_HOME|g" \
+sed -e "s|__USER__|$PI_USER|g" \
+    -e "s|__HOME__|$PI_HOME|g" \
     -e "s|__APP_DIR__|$APP_DIR|g" \
     "$STARTX_TEMPLATE" > "$APP_DIR/deploy/start-x.local.sh"
 chmod +x "$APP_DIR/deploy/start-x.local.sh"

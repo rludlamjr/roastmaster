@@ -8,12 +8,13 @@ Conflicts=getty@tty1.service
 
 [Service]
 Type=simple
-User=__USER__
-Group=__USER__
 
+# xinit runs as root to access the virtual console;
+# start-x.local.sh drops to the app user via sudo
+User=root
 Environment=HOME=__HOME__
+Environment=SDL_AUDIODRIVER=dummy
 
-# Start X server with no cursor, running our app directly
 ExecStart=/usr/bin/xinit __APP_DIR__/deploy/start-x.local.sh -- :0 vt1 -nocursor -quiet
 WorkingDirectory=__APP_DIR__
 
@@ -21,12 +22,7 @@ WorkingDirectory=__APP_DIR__
 Restart=on-failure
 RestartSec=3
 
-# Give access to display, input, and serial devices
-SupplementaryGroups=video input dialout render tty
-
-# Allow X to access the tty
-TTYPath=/dev/tty1
-StandardInput=tty
+# Keep stdout/stderr in journalctl
 StandardOutput=journal
 StandardError=journal
 
