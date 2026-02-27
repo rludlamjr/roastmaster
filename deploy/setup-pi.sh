@@ -11,6 +11,7 @@ PI_USER="${SUDO_USER:-pi}"
 PI_HOME=$(eval echo "~$PI_USER")
 APP_DIR="$PI_HOME/conar255"
 SERVICE_TEMPLATE="$APP_DIR/deploy/conar255.service"
+STARTX_TEMPLATE="$APP_DIR/deploy/start-x.sh"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: Run this script with sudo"
@@ -30,23 +31,30 @@ echo "  App:  $APP_DIR"
 echo ""
 
 # 1. Ensure user is in the right groups
-echo "[1/6] Adding $PI_USER to device groups..."
-usermod -aG video,input,dialout,render "$PI_USER" 2>/dev/null || true
+echo "[1/7] Adding $PI_USER to device groups..."
+usermod -aG video,input,dialout,render,tty "$PI_USER" 2>/dev/null || true
 
-# 2. Install the systemd service (fill in user/path placeholders)
-echo "[2/6] Installing systemd service..."
+# 2. Fill in placeholders in start-x.sh
+echo "[2/7] Installing start-x.sh..."
+sed -e "s|__HOME__|$PI_HOME|g" \
+    -e "s|__APP_DIR__|$APP_DIR|g" \
+    "$STARTX_TEMPLATE" > "$APP_DIR/deploy/start-x.local.sh"
+chmod +x "$APP_DIR/deploy/start-x.local.sh"
+
+# 3. Install the systemd service (fill in user/path placeholders)
+echo "[3/7] Installing systemd service..."
 sed -e "s|__USER__|$PI_USER|g" \
     -e "s|__HOME__|$PI_HOME|g" \
     -e "s|__APP_DIR__|$APP_DIR|g" \
     "$SERVICE_TEMPLATE" > /etc/systemd/system/conar255.service
 systemctl daemon-reload
 
-# 3. Enable the service to start on boot
-echo "[3/6] Enabling service for boot..."
+# 4. Enable the service to start on boot
+echo "[4/7] Enabling service for boot..."
 systemctl enable conar255.service
 
-# 4. Quiet the boot process — hide kernel/systemd text
-echo "[4/6] Configuring quiet boot..."
+# 5. Quiet the boot process — hide kernel/systemd text
+echo "[5/7] Configuring quiet boot..."
 CMDLINE="/boot/firmware/cmdline.txt"
 if [ ! -f "$CMDLINE" ]; then
     CMDLINE="/boot/cmdline.txt"
@@ -64,8 +72,8 @@ else
     echo "  WARNING: Could not find cmdline.txt"
 fi
 
-# 5. Disable unnecessary services to speed up boot
-echo "[5/6] Disabling unnecessary services..."
+# 6. Disable unnecessary services to speed up boot
+echo "[6/7] Disabling unnecessary services..."
 DISABLE_SERVICES=(
     bluetooth
     hciuart
@@ -80,9 +88,16 @@ for svc in "${DISABLE_SERVICES[@]}"; do
     fi
 done
 
-# 6. Disable console getty on tty1 (our app owns the screen)
-echo "[6/6] Disabling console on tty1..."
+# 7. Disable console getty on tty1 (our app owns the screen)
+echo "[7/7] Disabling console on tty1..."
 systemctl disable getty@tty1 2>/dev/null || true
+
+# Allow xinit to run from the service without root
+if [ -f /etc/X11/Xwrapper.config ]; then
+    sed -i 's/^allowed_users=.*/allowed_users=anybody/' /etc/X11/Xwrapper.config
+else
+    echo "allowed_users=anybody" > /etc/X11/Xwrapper.config
+fi
 
 echo ""
 echo "=== Setup complete ==="
