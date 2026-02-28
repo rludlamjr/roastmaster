@@ -17,6 +17,7 @@ Hardware wiring:
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 from roastmaster.hal.base import InputEvent, InputState
@@ -35,7 +36,21 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # TEMPORARY pin assignments — breadboard prototype
 # ---------------------------------------------------------------------------
-_CHIP = "/dev/gpiochip4"
+
+
+def _detect_chip() -> str:
+    """Auto-detect the GPIO chip device path.
+
+    Pi 3B/4: /dev/gpiochip0
+    Pi 5:    /dev/gpiochip4
+    """
+    for path in ("/dev/gpiochip0", "/dev/gpiochip4"):
+        if os.path.exists(path):
+            return path
+    return "/dev/gpiochip0"
+
+
+_CHIP = _detect_chip()
 
 # Toggle switches (pull-up, active-low)
 _HEAT_PIN = 17
