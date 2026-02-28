@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "pygame>=2.5.0",
     "pyserial>=3.5",
+    "gpiod>=2.1",
 ]
 
 [dependency-groups]
