@@ -134,42 +134,21 @@ class GPIOInput:
 
     def _setup_switches(self) -> None:
         """Request switch lines with edge detection, pull-up, and debounce."""
-        config = {
-            tuple(_SWITCH_PINS): gpiod.LineSettings(
-                direction=Direction.INPUT,
-                edge_detection=Edge.BOTH,
-                bias=Bias.PULL_UP,
-                active_low=True,
-                debounce_period=gpiod.line.clock.Duration.from_microseconds(
-                    _DEBOUNCE_US
-                )
-                if hasattr(gpiod.line, "clock")
-                else None,
-            )
-        }
+        from datetime import timedelta
 
-        # Fallback: some gpiod versions use a simpler debounce API
-        try:
-            self._switch_request = gpiod.request_lines(
-                _CHIP,
-                consumer="roastmaster-switches",
-                config={
-                    tuple(_SWITCH_PINS): gpiod.LineSettings(
-                        direction=Direction.INPUT,
-                        edge_detection=Edge.BOTH,
-                        bias=Bias.PULL_UP,
-                        active_low=True,
-                        debounce_period=_DEBOUNCE_US,
-                    )
-                },
-            )
-        except TypeError:
-            # Older gpiod API — try without debounce_period kwarg
-            self._switch_request = gpiod.request_lines(
-                _CHIP,
-                consumer="roastmaster-switches",
-                config=config,
-            )
+        self._switch_request = gpiod.request_lines(
+            _CHIP,
+            consumer="roastmaster-switches",
+            config={
+                tuple(_SWITCH_PINS): gpiod.LineSettings(
+                    direction=Direction.INPUT,
+                    edge_detection=Edge.BOTH,
+                    bias=Bias.PULL_UP,
+                    active_low=True,
+                    debounce_period=timedelta(microseconds=_DEBOUNCE_US),
+                )
+            },
+        )
 
     def _read_pot_rc(self, pin: int) -> int:
         """Read a single pot via RC timing.
