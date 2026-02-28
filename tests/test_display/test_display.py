@@ -1061,3 +1061,101 @@ class TestRendererEventMarkers:
         r.set_events([(60.0, 200.0, "CHARGE")])
         r.reset_graph()
         assert r._graph._event_markers == []
+
+
+# ---------------------------------------------------------------------------
+# Full-screen status / debug overlay tests
+# ---------------------------------------------------------------------------
+
+
+class TestFullStatusScreen:
+    """Tests for the CRT-reworked full-screen debug overlay."""
+
+    def test_render_with_debug_overlay(self, pygame_surface):
+        """Debug overlay should render without error."""
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.render({
+            "elapsed": 60.0,
+            "phase": "ROASTING",
+            "burner": 50.0,
+            "drum": 50.0,
+            "air": 50.0,
+            "debug_visible": True,
+            "debug_lines": [
+                "DEV: SIM",
+                "CONN: ONLINE",
+                "MODE: MANUAL",
+                "HEAT: OFF",
+                "COOL: OFF",
+                "ERRS: 0",
+                "BT: 200.0F",
+                "ET: 250.0F",
+            ],
+        })
+
+    def test_debug_replaces_graph(self, pygame_surface):
+        """When debug is visible, graph is not drawn (no crash)."""
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        for t in range(0, 60, 5):
+            r.push_data({"elapsed": float(t), "bt": 200.0 + t, "et": 250.0, "ror": 5.0})
+        r.render({
+            "elapsed": 60.0,
+            "phase": "IDLE",
+            "debug_visible": True,
+            "debug_lines": ["LINE 1", "LINE 2"],
+        })
+
+    def test_debug_hidden_shows_graph(self, pygame_surface):
+        """When debug is not visible, graph renders normally."""
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.render({
+            "elapsed": 10.0,
+            "phase": "IDLE",
+            "debug_visible": False,
+            "debug_lines": ["SHOULD NOT SHOW"],
+        })
+
+    def test_debug_many_lines_truncated(self, pygame_surface):
+        """More lines than fit should not crash (lines are clipped)."""
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.render({
+            "elapsed": 0.0,
+            "phase": "IDLE",
+            "debug_visible": True,
+            "debug_lines": [f"LINE {i}" for i in range(30)],
+        })
+
+
+class TestMessageOverlay:
+    """Tests for the flash message overlay on the graph area."""
+
+    def test_render_with_message(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.render({
+            "elapsed": 60.0,
+            "phase": "ROASTING",
+            "burner": 50.0,
+            "drum": 50.0,
+            "air": 50.0,
+            "message": "CHARGE MARKED",
+        })
+
+    def test_render_empty_message_no_overlay(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(surface=pygame_surface)
+        r.render({
+            "elapsed": 60.0,
+            "phase": "IDLE",
+            "message": "",
+        })

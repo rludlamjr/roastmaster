@@ -144,12 +144,6 @@ class RoastSession:
 # Input handling
 # ---------------------------------------------------------------------------
 
-_DEFAULT_MESSAGE = (
-    "H:HEAT  C:COOL  P:PID  [:SV-  ]:SV+  T:PREHEAT  "
-    "F1:CHARGE  F2:FC  F3:SC  F4:DROP  M:MODE  U:UNIT  R:RESET  Q:QUIT  F12:DEBUG"
-)
-
-
 def _handle_input(
     event: InputEvent,
     session: RoastSession,
@@ -568,11 +562,6 @@ def _build_render_data(
     test_mode: bool = False,
 ) -> dict:
     """Build the data dict expected by the Renderer."""
-    mode_tag = "AUTO" if session.auto_mode else "MANUAL"
-    if test_mode:
-        mode_tag = "TEST (READ ONLY)"
-    status = f"{message}  |  {mode_tag}" if message else f"{_DEFAULT_MESSAGE}  |  {mode_tag}"
-
     return {
         "bt": session.bt,
         "et": session.et,
@@ -584,7 +573,7 @@ def _build_render_data(
         "air": float(hal.state.air),
         "heat_enabled": session.heat_enabled,
         "cooling_enabled": session.cooling_enabled,
-        "message": status,
+        "message": message,
     }
 
 

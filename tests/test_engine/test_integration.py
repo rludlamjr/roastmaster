@@ -249,14 +249,12 @@ class TestBuildRenderData:
         data = _build_render_data(session, hal, "")
         assert data["phase"] == "IDLE"
 
-    def test_message_includes_mode(self, session, hal):
+    def test_message_passthrough(self, session, hal):
         data = _build_render_data(session, hal, "")
-        assert "MANUAL" in data["message"]
+        assert data["message"] == ""
 
-        session.auto_mode = True
         data = _build_render_data(session, hal, "TEST MSG")
-        assert "AUTO" in data["message"]
-        assert "TEST MSG" in data["message"]
+        assert data["message"] == "TEST MSG"
 
     def test_control_values_from_hal(self, session, hal):
         hal._state.burner = 75

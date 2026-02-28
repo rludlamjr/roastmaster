@@ -37,7 +37,6 @@ from roastmaster.display.widgets import (
     GraphWidget,
     NumericReadout,
     ProfileBrowser,
-    StatusBar,
 )
 from roastmaster.profiles.schema import ProfileSample
 
@@ -46,13 +45,14 @@ from roastmaster.profiles.schema import ProfileSample
 # ---------------------------------------------------------------------------
 
 _MARGIN = 4
-_TITLE_H = 18          # top title strip height
+_CRT_TOP = 16          # CRT overscan safe margin (top)
+_CRT_BOTTOM = 16       # CRT overscan safe margin (bottom)
 _READOUT_H = 70        # height of the top readout row
-_STATUS_H = 26         # status bar height at the very bottom
-_CONTROL_H = 60        # control indicator height above status bar
-_GRAPH_TOP = _MARGIN + _TITLE_H + _MARGIN + _READOUT_H + _MARGIN
-_GRAPH_BOTTOM = SCREEN_HEIGHT - _MARGIN - _STATUS_H - _MARGIN - _CONTROL_H - _MARGIN
-_GRAPH_H = _GRAPH_BOTTOM - _GRAPH_TOP
+_CONTROL_H = 60        # control indicator height above bottom margin
+_GRAPH_TOP = _CRT_TOP + _READOUT_H + _MARGIN   # 90
+_CONTROL_Y = SCREEN_HEIGHT - _CRT_BOTTOM - _CONTROL_H  # 404
+_GRAPH_BOTTOM = _CONTROL_Y - _MARGIN            # 400
+_GRAPH_H = _GRAPH_BOTTOM - _GRAPH_TOP           # 310
 
 # Three equal-width readout panels across the top
 _READOUT_W = (SCREEN_WIDTH - _MARGIN * 4) // 3
@@ -77,7 +77,7 @@ class Renderer:
         self._surface = surface
 
         # -- Readout widgets (top row) --
-        readout_y = _MARGIN + _TITLE_H + _MARGIN
+        readout_y = _CRT_TOP
         self._bt_readout = NumericReadout(
             rect=(_MARGIN, readout_y, _READOUT_W, _READOUT_H),
             label="BT",
@@ -108,8 +108,8 @@ class Renderer:
             window_seconds=window_seconds,
         )
 
-        # -- Control indicator (above status bar) --
-        control_y = SCREEN_HEIGHT - _MARGIN - _STATUS_H - _MARGIN - _CONTROL_H
+        # -- Control indicator (above bottom overscan) --
+        control_y = _CONTROL_Y
         # Split the bottom band: control takes left 2/3, a small info panel takes right 1/3
         control_w = (SCREEN_WIDTH - _MARGIN * 3) * 2 // 3
         self._control = ControlIndicator(
@@ -120,12 +120,6 @@ class Renderer:
         info_x = _MARGIN * 2 + control_w
         info_w = SCREEN_WIDTH - info_x - _MARGIN
         self._info_rect = pygame.Rect(info_x, control_y, info_w, _CONTROL_H)
-
-        # -- Status bar (bottom) --
-        status_y = SCREEN_HEIGHT - _MARGIN - _STATUS_H
-        self._status = StatusBar(
-            rect=(_MARGIN, status_y, SCREEN_WIDTH - _MARGIN * 2, _STATUS_H),
-        )
 
         # -- Profile browser overlay (hidden by default) --
         browser_w = 400
@@ -243,12 +237,6 @@ class Renderer:
         # Clear
         surface.fill(theme.BG)
 
-        # Outer border
-        pygame.draw.rect(surface, theme.GREEN_DIM, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT), 1)
-
-        # Title strip
-        self._draw_title(surface, elapsed)
-
         # Readouts
         self._bt_readout.update(bt, use_celsius=self._use_celsius)
         self._bt_readout.draw(surface)
@@ -259,33 +247,7 @@ class Renderer:
         self._ror_readout.update(ror, use_celsius=self._use_celsius)
         self._ror_readout.draw(surface)
 
-        # Graph
-        self._graph.draw(surface, elapsed)
-
-        # Controls
-        self._control.update(burner, drum, air)
-        self._control.draw(surface)
-
-        # Info panel
-        connected = data.get("connected")
-        device_label = data.get("device_label")
-        heat_enabled = data.get("heat_enabled")
-        cooling_enabled = data.get("cooling_enabled")
-        self._draw_info_panel(
-            surface,
-            phase,
-            elapsed,
-            connected=(bool(connected) if connected is not None else None),
-            device_label=(str(device_label) if device_label is not None else None),
-            heat_enabled=(bool(heat_enabled) if heat_enabled is not None else None),
-            cooling_enabled=(bool(cooling_enabled) if cooling_enabled is not None else None),
-        )
-
-        # Status bar
-        self._status.update(phase, elapsed, message)
-        self._status.draw(surface)
-
-        # Debug overlay (below profile browser)
+        # Debug overlay replaces the graph when active
         debug_visible = bool(data.get("debug_visible", False))
         debug_lines = data.get("debug_lines")
         if (
@@ -294,7 +256,29 @@ class Renderer:
             and isinstance(debug_lines, list)
             and debug_lines
         ):
-            self._draw_debug_overlay(surface, [str(x) for x in debug_lines])
+            self._draw_full_status_screen(surface, [str(x) for x in debug_lines])
+        else:
+            # Graph
+            self._graph.draw(surface, elapsed)
+
+            # Flash message overlay on top of the graph
+            if message:
+                self._draw_message_overlay(surface, message)
+
+        # Controls
+        self._control.update(burner, drum, air)
+        self._control.draw(surface)
+
+        # Info panel
+        heat_enabled = data.get("heat_enabled")
+        cooling_enabled = data.get("cooling_enabled")
+        self._draw_info_panel(
+            surface,
+            phase,
+            elapsed,
+            heat_enabled=(bool(heat_enabled) if heat_enabled is not None else None),
+            cooling_enabled=(bool(cooling_enabled) if cooling_enabled is not None else None),
+        )
 
         # Profile browser overlay (on top of everything)
         if self._browser_visible:
@@ -304,57 +288,42 @@ class Renderer:
     # Private rendering helpers
     # ------------------------------------------------------------------
 
-    def _draw_title(self, surface: pygame.Surface, elapsed: float) -> None:
-        """Draw the narrow title band at the top of the screen."""
-        title_rect = pygame.Rect(_MARGIN, _MARGIN, SCREEN_WIDTH - _MARGIN * 2, _TITLE_H)
-        pygame.draw.rect(surface, theme.BG, title_rect)
-        pygame.draw.rect(surface, theme.GREEN_DIM, title_rect, 1)
-
-        title = "CONAR MODEL 255 - A.R.S."
-        tw = text_width(title, scale=2)
-        tx = title_rect.x + (title_rect.width - tw) // 2
-        ty = title_rect.y + (title_rect.height - text_height(2)) // 2
-        render_text(surface, title, tx, ty, theme.TEXT, scale=2)
-
-        # Right-align a small clock
-        mins = int(elapsed) // 60
-        secs = int(elapsed) % 60
-        clock_str = f"T+ {mins:02d}:{secs:02d}"
-        cw = text_width(clock_str, scale=1)
-        render_text(
-            surface,
-            clock_str,
-            title_rect.right - cw - 4,
-            title_rect.y + (title_rect.height - text_height(1)) // 2,
-            theme.TEXT_DIM,
-            scale=1,
-        )
-
     def _draw_info_panel(
         self,
         surface: pygame.Surface,
         phase: str,
         elapsed: float,
         *,
-        connected: bool | None = None,
-        device_label: str | None = None,
         heat_enabled: bool | None = None,
         cooling_enabled: bool | None = None,
     ) -> None:
-        """Draw the small info panel to the right of the control bars."""
+        """Draw the info panel to the right of the control bars.
+
+        Uses scale=2 for phase and timer so they are legible on a CRT.
+        """
         r = self._info_rect
         pygame.draw.rect(surface, theme.BG, r)
         pygame.draw.rect(surface, theme.GREEN_DIM, r, 1)
 
-        if connected is True:
-            conn = "ONLINE"
-        elif connected is False:
-            conn = "OFFLINE"
-        else:
-            conn = "CONN ?"
-        dev = device_label or ""
-        conn_line = f"{dev} {conn}".strip()
+        pad = 4
+        max_w = r.width - pad * 2
 
+        # Line 1: Phase name, scale=2
+        phase_text = self._truncate_to_width(phase, max_w, scale=2)
+        pw = text_width(phase_text, scale=2)
+        px = r.x + (r.width - pw) // 2
+        y = r.y + pad
+        render_text(surface, phase_text, px, y, theme.TEXT, scale=2)
+        y += text_height(2) + 2
+
+        # Line 2: Timer MM:SS, scale=2
+        timer_text = f"{int(elapsed) // 60:02d}:{int(elapsed) % 60:02d}"
+        tw = text_width(timer_text, scale=2)
+        tx = r.x + (r.width - tw) // 2
+        render_text(surface, timer_text, tx, y, theme.TEXT, scale=2)
+        y += text_height(2) + 2
+
+        # Line 3: H:ON C:OFF, scale=1
         if heat_enabled is True:
             heat = "ON"
         elif heat_enabled is False:
@@ -368,22 +337,9 @@ class Renderer:
         else:
             cool = "?"
         switches_line = f"H:{heat} C:{cool}"
-
-        lines = [
-            phase,
-            f"{int(elapsed) // 60:02d}:{int(elapsed) % 60:02d}",
-            conn_line,
-            switches_line,
-        ]
-        pad = 4
-        max_w = r.width - pad * 2
-        y = r.y + pad
-        for line in lines:
-            line = self._truncate_to_width(line, max_w, scale=1)
-            lw = text_width(line, scale=1)
-            lx = r.x + (r.width - lw) // 2
-            render_text(surface, line, lx, y, theme.TEXT_DIM, scale=1)
-            y += text_height(1) + 3
+        sw = text_width(switches_line, scale=1)
+        sx = r.x + (r.width - sw) // 2
+        render_text(surface, switches_line, sx, y, theme.TEXT_DIM, scale=1)
 
     @staticmethod
     def _truncate_to_width(text: str, max_width_px: int, *, scale: int = 1) -> str:
@@ -400,26 +356,63 @@ class Renderer:
             trimmed = trimmed[:-1]
         return (trimmed + suffix) if trimmed else suffix
 
-    def _draw_debug_overlay(self, surface: pygame.Surface, lines: list[str]) -> None:
-        """Draw a debug overlay box inside the graph area."""
-        pad = 6
-        scale = 1
-        x = _MARGIN + 6
-        y = _GRAPH_TOP + 6
-
-        max_content_w = SCREEN_WIDTH - x - _MARGIN - pad * 2
-        safe_lines = [self._truncate_to_width(line, max_content_w, scale=scale) for line in lines]
-
-        line_h = text_height(scale) + 2
-        content_w = max((text_width(line, scale=scale) for line in safe_lines), default=0)
-        w = content_w + pad * 2
-        h = len(safe_lines) * line_h + pad * 2
-
-        rect = pygame.Rect(x, y, w, h)
+    def _draw_full_status_screen(self, surface: pygame.Surface, lines: list[str]) -> None:
+        """Draw a full-screen status display in the graph area."""
+        pad = 8
+        scale = 2
+        rect = pygame.Rect(_MARGIN, _GRAPH_TOP, SCREEN_WIDTH - _MARGIN * 2, _GRAPH_H)
         pygame.draw.rect(surface, theme.BG, rect)
-        pygame.draw.rect(surface, theme.GREEN_MEDIUM, rect, 1)
+        pygame.draw.rect(surface, theme.GREEN_DIM, rect, 1)
 
+        max_content_w = rect.width - pad * 2
+
+        # Title
+        title = "SYSTEM STATUS"
+        tw = text_width(title, scale=scale)
+        tx = rect.x + (rect.width - tw) // 2
         ty = rect.y + pad
-        for line in safe_lines:
-            render_text(surface, line, rect.x + pad, ty, theme.TEXT_DIM, scale=scale)
+        render_text(surface, title, tx, ty, theme.TEXT, scale=scale)
+        ty += text_height(scale) + 4
+
+        # Divider line
+        pygame.draw.line(
+            surface,
+            theme.GREEN_DIM,
+            (rect.x + pad, ty),
+            (rect.right - pad, ty),
+        )
+        ty += 6
+
+        # Debug lines in scale=2
+        line_h = text_height(scale) + 4
+        for line in lines:
+            if ty + line_h > rect.bottom - pad:
+                break
+            safe = self._truncate_to_width(line, max_content_w, scale=scale)
+            render_text(surface, safe, rect.x + pad, ty, theme.TEXT_DIM, scale=scale)
             ty += line_h
+
+    def _draw_message_overlay(self, surface: pygame.Surface, message: str) -> None:
+        """Draw a brief flash message overlay on the graph area."""
+        scale = 2
+        pad = 6
+        mw = text_width(message, scale=scale)
+        mh = text_height(scale)
+
+        # Center horizontally in graph area, near top (below legend area)
+        graph_rect = pygame.Rect(_MARGIN, _GRAPH_TOP, SCREEN_WIDTH - _MARGIN * 2, _GRAPH_H)
+        box_w = mw + pad * 2
+        box_h = mh + pad * 2
+        bx = graph_rect.x + (graph_rect.width - box_w) // 2
+        by = graph_rect.y + 20
+
+        # Semi-transparent dark background
+        bg_surf = pygame.Surface((box_w, box_h))
+        bg_surf.set_alpha(180)
+        bg_surf.fill(theme.BG)
+        surface.blit(bg_surf, (bx, by))
+
+        # Text
+        tx = bx + pad
+        ty = by + pad
+        render_text(surface, message, tx, ty, theme.TEXT, scale=scale)
