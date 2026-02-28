@@ -2,6 +2,7 @@
 
 from roastmaster.hal.base import InputBackend, InputEvent, InputState
 from roastmaster.hal.gpio import GPIOInput
+from roastmaster.hal.hybrid import HybridInput
 from roastmaster.hal.keyboard import KeyboardInput
 
 __all__ = [
@@ -9,5 +10,6 @@ __all__ = [
     "InputEvent",
     "InputState",
     "GPIOInput",
+    "HybridInput",
     "KeyboardInput",
 ]

@@ -696,6 +696,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="List available serial ports and exit",
     )
     parser.add_argument(
+        "--gpio",
+        action="store_true",
+        help="Enable GPIO input (toggle switches + RC pots) alongside keyboard",
+    )
+    parser.add_argument(
         "--serial-log",
         action="store_true",
         help="Log raw Kaleido RX/TX traffic (very verbose; use for debugging)",
@@ -786,6 +791,20 @@ def main(argv: list[str] | None = None) -> None:
 
     renderer = Renderer(surface=screen, window_seconds=600.0)
     hal = KeyboardInput()
+
+    # --- GPIO hybrid wiring (--gpio flag) ---
+    gpio_backend = None
+    if args.gpio:
+        from roastmaster.hal.gpio import GPIOInput
+        from roastmaster.hal.hybrid import HybridInput
+
+        gpio_backend = GPIOInput()
+        if gpio_backend.available:
+            hal = HybridInput(keyboard=hal, gpio=gpio_backend)  # type: ignore[assignment]
+            logger.info("Hybrid input: keyboard + GPIO")
+        else:
+            logger.warning("GPIO not available — keyboard only")
+            gpio_backend = None
 
     device: RoasterDevice
     device_label = "SIM"
@@ -1008,6 +1027,16 @@ def main(argv: list[str] | None = None) -> None:
     finally:
         # Ensure clean shutdown regardless of how we exit
         logger.info("Shutting down...")
+        if hasattr(hal, "close"):
+            try:
+                hal.close()
+            except Exception:  # noqa: BLE001
+                pass
+        elif gpio_backend is not None:
+            try:
+                gpio_backend.close()
+            except Exception:  # noqa: BLE001
+                pass
         try:
             device.disconnect()
         except Exception:  # noqa: BLE001
