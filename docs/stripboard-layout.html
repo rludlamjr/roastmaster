@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoastMaster Stripboard Layout Guide</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --card: #0f3460;
+    --accent: #e6a44e;
+    --text: #e0e0e0;
+    --muted: #888;
+    --success: #6bbd6b;
+    --danger: #cd5c5c;
+    --info: #6b9edd;
+    --copper: #b87333;
+    --board-bg: #c4a265;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  h1 { color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 10px; }
+  h2 { color: var(--accent); margin-top: 40px; }
+  h3 { color: var(--info); }
+  a { color: var(--info); }
+
+  .spec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+  }
+  .spec-card {
+    background: var(--surface);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 15px;
+  }
+  .spec-card h4 { margin: 0 0 8px 0; color: var(--accent); }
+  .spec-card p { margin: 0; color: var(--muted); font-size: 0.9em; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+    font-size: 0.9em;
+  }
+  th, td {
+    border: 1px solid #333;
+    padding: 6px 10px;
+    text-align: left;
+  }
+  th {
+    background: var(--card);
+    color: var(--accent);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+  tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+  tr:hover { background: rgba(255,255,255,0.07); }
+
+  .note {
+    background: rgba(107, 142, 45, 0.15);
+    border-left: 4px solid #6b8e23;
+    padding: 12px 16px;
+    margin: 15px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .warning {
+    background: rgba(205, 92, 92, 0.15);
+    border-left: 4px solid var(--danger);
+    padding: 12px 16px;
+    margin: 15px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .info {
+    background: rgba(107, 158, 221, 0.15);
+    border-left: 4px solid var(--info);
+    padding: 12px 16px;
+    margin: 15px 0;
+    border-radius: 0 6px 6px 0;
+  }
+
+  #board-container {
+    overflow: auto;
+    background: #0d0d1a;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    margin: 20px 0;
+    cursor: grab;
+  }
+  #board-container:active { cursor: grabbing; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 15px 0;
+    padding: 10px;
+    background: var(--surface);
+    border-radius: 6px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85em;
+  }
+  .legend-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    border: 1px solid #555;
+  }
+
+  .zoom-controls {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .zoom-controls button {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid #555;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+  }
+  .zoom-controls button:hover { background: var(--accent); color: #000; }
+
+  .pin-label { font-family: 'Courier New', monospace; font-weight: bold; }
+
+  code {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+
+  .checklist { list-style: none; padding-left: 5px; }
+  .checklist li { padding: 4px 0; }
+  .checklist li::before { content: "\2610 "; color: var(--accent); }
+
+  .toc {
+    background: var(--surface);
+    padding: 15px 25px;
+    border-radius: 8px;
+    margin: 20px 0;
+    border: 1px solid #333;
+  }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 3px 0; }
+  .toc a { text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  @media print {
+    body { background: #fff; color: #000; }
+    th { background: #ddd; color: #000; }
+    .zoom-controls, .toc { display: none; }
+    #board-container { border: 2px solid #000; break-inside: avoid; }
+  }
+
+  .tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.9);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+    border: 1px solid var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<h1>RoastMaster Stripboard Layout Guide</h1>
+<p>Complete build reference for the RoastMaster control panel interface board.<br>
+Board connects the Raspberry Pi (via T-Cobbler Plus) to the MCP3008 ADC, PCA9685 PWM driver,
+and all panel controls (switches, pots, buttons, encoder).</p>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#specs">Board Specifications</a></li>
+    <li><a href="#layout">Stripboard Layout Diagram</a></li>
+    <li><a href="#cuts">Track Cuts</a></li>
+    <li><a href="#components">Component Placement</a></li>
+    <li><a href="#pullups">Pull-Up Resistors</a></li>
+    <li><a href="#caps">Debounce Capacitors</a></li>
+    <li><a href="#jumpers">On-Board Jumper Wires</a></li>
+    <li><a href="#offboard">Off-Board Wiring</a></li>
+    <li><a href="#power">Power Wiring</a></li>
+    <li><a href="#build">Build Sequence</a></li>
+    <li><a href="#test">Testing Checklist</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="specs">1. Board Specifications</h2>
+
+<div class="spec-grid">
+  <div class="spec-card">
+    <h4>Stripboard</h4>
+    <p>80 &times; 120 mm (31 rows &times; 47 columns)<br>
+    Copper strips run horizontally (left to right)<br>
+    Standard 0.1" (2.54 mm) hole pitch</p>
+  </div>
+  <div class="spec-card">
+    <h4>T-Cobbler Plus</h4>
+    <p>Adafruit #2028 &mdash; 40-pin GPIO breakout<br>
+    Placed at cols 22-23, rows 3-22<br>
+    20 track cuts required (1 per pin pair)</p>
+  </div>
+  <div class="spec-card">
+    <h4>MCP3008</h4>
+    <p>8-channel 10-bit SPI ADC (DIP-16)<br>
+    Placed at cols 8-11, rows 10-17<br>
+    In 16-pin DIP socket</p>
+  </div>
+  <div class="spec-card">
+    <h4>PCA9685</h4>
+    <p>16-channel 12-bit PWM driver (breakout board)<br>
+    Connected via 6-pin header at col 35, rows 10-15<br>
+    Breakout board mounted separately</p>
+  </div>
+</div>
+
+<div class="info">
+  <strong>Orientation convention:</strong> All row/column references assume you are looking at the
+  <strong>component side</strong> (top) of the board. Row 1 is at the top, column 1 is at the left.
+  Copper strips are on the bottom, running left to right. Track cuts are made from the copper side
+  (flip the board &mdash; remember that left/right are mirrored).
+</div>
+
+<!-- ============================================================ -->
+<h2 id="layout">2. Stripboard Layout Diagram</h2>
+
+<p>The diagram below shows the component side (top view). Copper strips run horizontally behind the
+board. Track cuts are shown as red marks. Hover over elements for details.</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#2d5a2d"></div> T-Cobbler Plus</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#1a4a7a"></div> MCP3008</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#5a2d5a"></div> PCA9685 Header</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(255,50,50,0.7)"></div> Track Cut</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e6a44e"></div> 3.3V Rail</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#444"></div> GND Rail</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#cc4444"></div> 5V Rail</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#6bbd6b"></div> Pull-up Resistor</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#6b9edd"></div> Debounce Cap</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#ddd"></div> Jumper Wire</div>
+</div>
+
+<div class="zoom-controls">
+  <button onclick="zoomBoard(1.2)">Zoom In (+)</button>
+  <button onclick="zoomBoard(1/1.2)">Zoom Out (-)</button>
+  <button onclick="zoomBoard(0)">Reset</button>
+</div>
+
+<div id="board-container">
+  <svg id="board-svg"></svg>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="cuts">3. Track Cuts</h2>
+
+<p>43 track cuts total. Cut from the <strong>copper side</strong> (bottom of board) using a craft knife,
+drill bit, or dedicated track cutter. Verify each cut with a multimeter (continuity mode).</p>
+
+<div class="warning">
+  <strong>Mirror warning:</strong> When you flip the board to the copper side, left and right are
+  reversed. Column 1 on the component side becomes column 47 on the copper side. Row numbers stay
+  the same. Use the "Copper-Side Column" in the table below.
+</div>
+
+<table>
+  <thead>
+    <tr><th>Group</th><th>Rows</th><th>Between Cols<br>(component side)</th><th>Between Cols<br>(copper side)</th><th>Count</th><th>Purpose</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>T-Cobbler</td><td>3 &ndash; 22</td><td>22 &ndash; 23</td><td>25 &ndash; 26</td><td>20</td><td>Isolate left/right T-Cobbler pin pairs</td></tr>
+    <tr><td>MCP3008 DIP</td><td>10 &ndash; 17</td><td>9 &ndash; 10</td><td>38 &ndash; 39</td><td>8</td><td>Separate MCP3008 left/right pin rows</td></tr>
+    <tr><td>MCP3008 iso.</td><td>10 &ndash; 17</td><td>14 &ndash; 15</td><td>33 &ndash; 34</td><td>8</td><td>Isolate MCP3008 from T-Cobbler strips</td></tr>
+    <tr><td>PCA9685 iso.</td><td>10 &ndash; 15</td><td>34 &ndash; 35</td><td>13 &ndash; 14</td><td>6</td><td>Isolate PCA9685 header from T-Cobbler</td></tr>
+    <tr><td>Right 3V3 bus</td><td>6</td><td>23 &ndash; 24</td><td>24 &ndash; 25</td><td>1</td><td>Create 3.3V bus on right side (cols 24-47)</td></tr>
+    <tr><td colspan="4"><strong>Total</strong></td><td><strong>43</strong></td><td></td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Copper-side column formula:</strong> <code>copper_col = 48 - component_col</code><br>
+  Example: Component col 22 &rarr; Copper col 26. Component col 23 &rarr; Copper col 25.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="components">4. Component Placement</h2>
+
+<h3>4a. T-Cobbler Plus &mdash; GPIO Breakout</h3>
+<p>The T-Cobbler straddles cols 22-23, spanning rows 3-22 (20 rows for 20 pin pairs).
+Each pin pair occupies one horizontal strip &mdash; track cuts between cols 22 and 23 isolate
+the left pin from the right pin.</p>
+
+<table>
+  <thead>
+    <tr><th>Row</th><th>Col 22 (Left Pin)</th><th>RPi Pin#</th><th>Col 23 (Right Pin)</th><th>RPi Pin#</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>3</td><td class="pin-label">3V3</td><td>1</td><td class="pin-label">5V</td><td>2</td><td>Power rails</td></tr>
+    <tr><td>4</td><td class="pin-label">GPIO2 (SDA)</td><td>3</td><td class="pin-label">5V</td><td>4</td><td>I2C data &rarr; PCA9685</td></tr>
+    <tr><td>5</td><td class="pin-label">GPIO3 (SCL)</td><td>5</td><td class="pin-label">GND</td><td>6</td><td>I2C clock &rarr; PCA9685</td></tr>
+    <tr><td>6</td><td class="pin-label">GPIO4</td><td>7</td><td class="pin-label">GPIO14</td><td>8</td><td>Both unused; right side repurposed as 3V3 bus (cols 24+)</td></tr>
+    <tr><td>7</td><td class="pin-label">GND</td><td>9</td><td class="pin-label">GPIO15</td><td>10</td><td>Left = GND bus; Right unused</td></tr>
+    <tr><td>8</td><td class="pin-label">GPIO17</td><td>11</td><td class="pin-label">GPIO18</td><td>12</td><td>Left = Encoder CLK; Right = RESET btn</td></tr>
+    <tr><td>9</td><td class="pin-label">GPIO27</td><td>13</td><td class="pin-label">GND</td><td>14</td><td>Left = Encoder DT; Right = GND</td></tr>
+    <tr><td>10</td><td class="pin-label">GPIO22</td><td>15</td><td class="pin-label">GPIO23</td><td>16</td><td>Left = Encoder SW; Right = Power toggle</td></tr>
+    <tr><td>11</td><td class="pin-label">3V3</td><td>17</td><td class="pin-label">GPIO24</td><td>18</td><td>Left = 3V3 bus (for nearby pull-ups); Right unused</td></tr>
+    <tr><td>12</td><td class="pin-label">GPIO10 (MOSI)</td><td>19</td><td class="pin-label">GND</td><td>20</td><td>SPI &rarr; MCP3008 DIN; Right = GND</td></tr>
+    <tr><td>13</td><td class="pin-label">GPIO9 (MISO)</td><td>21</td><td class="pin-label">GPIO25</td><td>22</td><td>SPI &rarr; MCP3008 DOUT; Right = SAVE btn</td></tr>
+    <tr><td>14</td><td class="pin-label">GPIO11 (SCLK)</td><td>23</td><td class="pin-label">GPIO8 (CE0)</td><td>24</td><td>SPI &rarr; MCP3008 CLK; Right &rarr; MCP3008 CS</td></tr>
+    <tr><td>15</td><td class="pin-label">GND</td><td>25</td><td class="pin-label">GPIO7 (CE1)</td><td>26</td><td>Left = GND; Right unused</td></tr>
+    <tr><td>16</td><td class="pin-label">GPIO0 (ID_SD)</td><td>27</td><td class="pin-label">GPIO1 (ID_SC)</td><td>28</td><td>Reserved &mdash; do not use</td></tr>
+    <tr><td>17</td><td class="pin-label">GPIO5</td><td>29</td><td class="pin-label">GND</td><td>30</td><td>Left = HEAT toggle; Right = GND</td></tr>
+    <tr><td>18</td><td class="pin-label">GPIO6</td><td>31</td><td class="pin-label">GPIO12</td><td>32</td><td>Left = COOL toggle; Right = DROP btn</td></tr>
+    <tr><td>19</td><td class="pin-label">GPIO13</td><td>33</td><td class="pin-label">GND</td><td>34</td><td>Left = MODE toggle; Right = GND</td></tr>
+    <tr><td>20</td><td class="pin-label">GPIO19</td><td>35</td><td class="pin-label">GPIO16</td><td>36</td><td>Left = SCE btn; Right = CHARGE btn</td></tr>
+    <tr><td>21</td><td class="pin-label">GPIO26</td><td>37</td><td class="pin-label">GPIO20</td><td>38</td><td>Left = FCS btn; Right = FCE btn</td></tr>
+    <tr><td>22</td><td class="pin-label">GND</td><td>39</td><td class="pin-label">GPIO21</td><td>40</td><td>Left = GND; Right = SCS btn</td></tr>
+  </tbody>
+</table>
+
+<h3>4b. MCP3008 ADC (DIP-16 in socket)</h3>
+<p>Place the 16-pin DIP socket at cols 8 (left pins) and 11 (right pins), rows 10-17.
+The IC body spans cols 8-11 (0.3&quot; / 7.62mm). Pin 1 (CH0) is at row 10, col 8.
+Notch/dot faces UP (toward row 1).</p>
+
+<table>
+  <thead>
+    <tr><th>Row</th><th>Col 8 (Left Pin)</th><th>Pin#</th><th>Col 11 (Right Pin)</th><th>Pin#</th><th>Connection</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>10</td><td>CH0</td><td>1</td><td>VDD</td><td>16</td><td>CH0 &rarr; Burner pot wiper | VDD &rarr; 3.3V</td></tr>
+    <tr><td>11</td><td>CH1</td><td>2</td><td>VREF</td><td>15</td><td>CH1 &rarr; Air pot wiper | VREF &rarr; 3.3V</td></tr>
+    <tr><td>12</td><td>CH2</td><td>3</td><td>AGND</td><td>14</td><td>CH2 &rarr; Drum pot wiper | AGND &rarr; GND</td></tr>
+    <tr><td>13</td><td>CH3</td><td>4</td><td>CLK</td><td>13</td><td>CH3 &rarr; Scroll pot wiper | CLK &rarr; GPIO11 (SCLK)</td></tr>
+    <tr><td>14</td><td>CH4</td><td>5</td><td>DOUT</td><td>12</td><td>Spare | DOUT &rarr; GPIO9 (MISO)</td></tr>
+    <tr><td>15</td><td>CH5</td><td>6</td><td>DIN</td><td>11</td><td>Spare | DIN &rarr; GPIO10 (MOSI)</td></tr>
+    <tr><td>16</td><td>CH6</td><td>7</td><td>CS</td><td>10</td><td>Spare | CS &rarr; GPIO8 (CE0)</td></tr>
+    <tr><td>17</td><td>CH7</td><td>8</td><td>DGND</td><td>9</td><td>Spare | DGND &rarr; GND</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Strip segments on MCP3008 rows (10-17):</strong><br>
+  Segment A: cols 1-9 (MCP3008 left pins + pot/scroll terminals)<br>
+  Segment B: cols 10-14 (MCP3008 right pins + SPI jumper pads)<br>
+  Segment C: cols 15-22 (T-Cobbler left pins)<br>
+  Segment D: cols 23-34 (T-Cobbler right pins)<br>
+  Segment E: cols 35-47 (PCA9685 header, rows 10-15 only)
+</div>
+
+<h3>4c. PCA9685 Header (6-pin, vertical)</h3>
+<p>The PCA9685 breakout board is mounted separately (on a standoff or the enclosure wall).
+A 6-pin header on the stripboard at col 35, rows 10-15 provides the I2C + power connection.
+Use a right-angle header or straight header with DuPont jumper wires to the breakout.</p>
+
+<table>
+  <thead>
+    <tr><th>Row</th><th>Col</th><th>Pin</th><th>Connection</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>10</td><td>35</td><td>GND</td><td>&rarr; GND bus (jumper wire)</td></tr>
+    <tr><td>11</td><td>35</td><td>OE</td><td>&rarr; GND (pull low = always enabled)</td></tr>
+    <tr><td>12</td><td>35</td><td>SCL</td><td>&rarr; GPIO3 (T-Cobbler row 5, col 22)</td></tr>
+    <tr><td>13</td><td>35</td><td>SDA</td><td>&rarr; GPIO2 (T-Cobbler row 4, col 22)</td></tr>
+    <tr><td>14</td><td>35</td><td>VCC</td><td>&rarr; 3.3V bus</td></tr>
+    <tr><td>15</td><td>35</td><td>V+</td><td>&rarr; 5V (T-Cobbler row 3, col 23)</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="pullups">5. Pull-Up Resistors (10K&ohm;)</h2>
+
+<p>15 pull-up resistors, all 10K&ohm; 1/4W through-hole. Each resistor bridges from a GPIO strip
+to a 3.3V strip. The resistor body sits on the component side, leads soldered to pads on
+both strips.</p>
+
+<h3>3.3V sources used for pull-ups</h3>
+<table>
+  <thead><tr><th>Row</th><th>Cols</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1-47</td><td>Primary 3.3V bus (top of board)</td></tr>
+    <tr><td>6</td><td>24-47</td><td>Right-side 3.3V bus (repurposed GPIO14 strip segment)</td></tr>
+    <tr><td>11</td><td>15-22</td><td>T-Cobbler 3V3 (pin 17), segment C on MCP3008 rows</td></tr>
+    <tr><td>23</td><td>1-47</td><td>Secondary 3.3V bus (below T-Cobbler area)</td></tr>
+  </tbody>
+</table>
+
+<h3>Pull-up resistor placement</h3>
+<table>
+  <thead>
+    <tr><th>Signal</th><th>GPIO</th><th>From (GPIO)</th><th>To (3.3V)</th><th>Span</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Encoder CLK</td><td>GPIO17</td><td>Row 8, Col 18</td><td>Row 11, Col 18</td><td>3 rows</td></tr>
+    <tr><td>Encoder DT</td><td>GPIO27</td><td>Row 9, Col 17</td><td>Row 11, Col 17</td><td>2 rows</td></tr>
+    <tr><td>Encoder SW</td><td>GPIO22</td><td>Row 10, Col 16</td><td>Row 11, Col 16</td><td>1 row</td></tr>
+    <tr><td>Power toggle</td><td>GPIO23</td><td>Row 10, Col 27</td><td>Row 6, Col 27</td><td>4 rows</td></tr>
+    <tr><td>HEAT toggle</td><td>GPIO5</td><td>Row 17, Col 20</td><td>Row 11, Col 20</td><td>6 rows</td></tr>
+    <tr><td>COOL toggle</td><td>GPIO6</td><td>Row 18, Col 19</td><td>Row 11, Col 19</td><td>7 rows</td></tr>
+    <tr><td>MODE toggle</td><td>GPIO13</td><td>Row 19, Col 18</td><td>Row 23, Col 18</td><td>4 rows</td></tr>
+    <tr><td>CHARGE btn</td><td>GPIO16</td><td>Row 20, Col 30</td><td>Row 23, Col 30</td><td>3 rows</td></tr>
+    <tr><td>FCS btn</td><td>GPIO26</td><td>Row 21, Col 17</td><td>Row 23, Col 17</td><td>2 rows</td></tr>
+    <tr><td>FCE btn</td><td>GPIO20</td><td>Row 21, Col 31</td><td>Row 23, Col 31</td><td>2 rows</td></tr>
+    <tr><td>SCS btn</td><td>GPIO21</td><td>Row 22, Col 32</td><td>Row 23, Col 32</td><td>1 row</td></tr>
+    <tr><td>SCE btn</td><td>GPIO19</td><td>Row 20, Col 16</td><td>Row 23, Col 16</td><td>3 rows</td></tr>
+    <tr><td>DROP btn</td><td>GPIO12</td><td>Row 18, Col 29</td><td>Row 23, Col 29</td><td>5 rows</td></tr>
+    <tr><td>SAVE btn</td><td>GPIO25</td><td>Row 13, Col 28</td><td>Row 6, Col 28</td><td>7 rows</td></tr>
+    <tr><td>RESET btn</td><td>GPIO18</td><td>Row 8, Col 26</td><td>Row 6, Col 26</td><td>2 rows</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="caps">6. Debounce &amp; Decoupling Capacitors (0.1&micro;F)</h2>
+
+<p>11 ceramic capacitors total. Each bridges from a signal strip to a GND strip. The capacitor
+body sits on the component side, leads soldered to pads on both strips.</p>
+
+<h3>GND sources used for capacitors</h3>
+<table>
+  <thead><tr><th>Row</th><th>Cols</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>1-47</td><td>Primary GND bus</td></tr>
+    <tr><td>7</td><td>1-22</td><td>T-Cobbler GND (pin 9), left segment</td></tr>
+    <tr><td>9</td><td>23-47</td><td>T-Cobbler GND (pin 14), right segment</td></tr>
+    <tr><td>12</td><td>23-34</td><td>T-Cobbler GND (pin 20), segment D</td></tr>
+    <tr><td>17</td><td>23-34</td><td>T-Cobbler GND (pin 30), right segment D</td></tr>
+    <tr><td>19</td><td>23-34</td><td>T-Cobbler GND (pin 34), right segment D</td></tr>
+    <tr><td>22</td><td>1-22</td><td>T-Cobbler GND (pin 39), left segment</td></tr>
+    <tr><td>24</td><td>1-47</td><td>Secondary GND bus</td></tr>
+  </tbody>
+</table>
+
+<h3>Capacitor placement</h3>
+<table>
+  <thead>
+    <tr><th>Signal</th><th>Type</th><th>From (Signal)</th><th>To (GND)</th><th>Span</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Encoder CLK (GPIO17)</td><td>Debounce</td><td>Row 8, Col 21</td><td>Row 7, Col 21</td><td>1 row</td></tr>
+    <tr><td>Encoder DT (GPIO27)</td><td>Debounce</td><td>Row 9, Col 20</td><td>Row 7, Col 20</td><td>2 rows</td></tr>
+    <tr><td>CHARGE (GPIO16)</td><td>Debounce</td><td>Row 20, Col 32</td><td>Row 19, Col 32</td><td>1 row</td></tr>
+    <tr><td>FCS (GPIO26)</td><td>Debounce</td><td>Row 21, Col 16</td><td>Row 22, Col 16</td><td>1 row</td></tr>
+    <tr><td>FCE (GPIO20)</td><td>Debounce</td><td>Row 21, Col 26</td><td>Row 19, Col 26</td><td>2 rows</td></tr>
+    <tr><td>SCS (GPIO21)</td><td>Debounce</td><td>Row 22, Col 33</td><td>Row 24, Col 33</td><td>2 rows</td></tr>
+    <tr><td>SCE (GPIO19)</td><td>Debounce</td><td>Row 20, Col 15</td><td>Row 22, Col 15</td><td>2 rows</td></tr>
+    <tr><td>DROP (GPIO12)</td><td>Debounce</td><td>Row 18, Col 31</td><td>Row 17, Col 31</td><td>1 row</td></tr>
+    <tr><td>SAVE (GPIO25)</td><td>Debounce</td><td>Row 13, Col 30</td><td>Row 12, Col 30</td><td>1 row</td></tr>
+    <tr><td>RESET (GPIO18)</td><td>Debounce</td><td>Row 8, Col 25</td><td>Row 9, Col 25</td><td>1 row</td></tr>
+    <tr><td>MCP3008 VDD</td><td>Decoupling</td><td>Row 10, Col 13</td><td>Row 12, Col 13</td><td>2 rows</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>MCP3008 decoupling cap:</strong> This cap bridges from the VDD strip (row 10, segment B)
+  to the AGND strip (row 12, segment B). Both pads are at column 13, which is within segment B
+  (cols 10-14). Place the cap as close to the MCP3008 as possible.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="jumpers">7. On-Board Jumper Wires</h2>
+
+<p>Jumper wires run on the <strong>component side</strong> of the board. Use insulated hookup wire
+(22-24 AWG). Strip ~3mm at each end, insert through the hole, and solder on the copper side.
+Color-code wires for easier debugging.</p>
+
+<h3>7a. Power Bus Connections</h3>
+<table>
+  <thead>
+    <tr><th>From</th><th>To</th><th>Signal</th><th>Color</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Row 3, Col 20 (3V3 left seg)</td><td>Row 1, Col 3</td><td>3.3V &rarr; primary bus</td><td>Red</td></tr>
+    <tr><td>Row 11, Col 15 (3V3 seg C)</td><td>Row 1, Col 8</td><td>3.3V &rarr; primary bus</td><td>Red</td></tr>
+    <tr><td>Row 1, Col 40</td><td>Row 23, Col 40</td><td>3.3V &rarr; secondary bus</td><td>Red</td></tr>
+    <tr><td>Row 1, Col 25</td><td>Row 6, Col 25</td><td>3.3V &rarr; right-side bus</td><td>Red</td></tr>
+    <tr><td>Row 7, Col 20 (GND left seg)</td><td>Row 2, Col 3</td><td>GND &rarr; primary bus</td><td>Black</td></tr>
+    <tr><td>Row 5, Col 25 (GND right seg)</td><td>Row 2, Col 40</td><td>GND &rarr; primary bus</td><td>Black</td></tr>
+    <tr><td>Row 22, Col 20 (GND left seg)</td><td>Row 24, Col 3</td><td>GND &rarr; secondary bus</td><td>Black</td></tr>
+    <tr><td>Row 9, Col 25 (GND right seg)</td><td>Row 24, Col 40</td><td>GND &rarr; secondary bus</td><td>Black</td></tr>
+  </tbody>
+</table>
+
+<h3>7b. SPI Connections (T-Cobbler &rarr; MCP3008)</h3>
+<table>
+  <thead>
+    <tr><th>Signal</th><th>From (T-Cobbler seg C)</th><th>To (MCP3008 seg B)</th><th>Color</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>MOSI &rarr; DIN</td><td>Row 12, Col 16</td><td>Row 15, Col 12</td><td>Yellow</td></tr>
+    <tr><td>MISO &rarr; DOUT</td><td>Row 13, Col 16</td><td>Row 14, Col 12</td><td>Orange</td></tr>
+    <tr><td>SCLK &rarr; CLK</td><td>Row 14, Col 16</td><td>Row 13, Col 12</td><td>Green</td></tr>
+    <tr><td>CE0 &rarr; CS</td><td>Row 14, Col 26</td><td>Row 16, Col 12</td><td>Blue</td></tr>
+  </tbody>
+</table>
+
+<div class="info">
+  <strong>CE0 routing note:</strong> CE0 is on the <em>right</em> side of the T-Cobbler (row 14,
+  col 23, segment D). The jumper starts at col 26 (on segment D) and crosses over to col 12
+  (MCP3008 segment B). This is the longest SPI jumper &mdash; route it cleanly to avoid interference.
+</div>
+
+<h3>7c. MCP3008 Power Connections</h3>
+<table>
+  <thead>
+    <tr><th>Signal</th><th>From</th><th>To</th><th>Color</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>VDD &rarr; 3.3V</td><td>Row 10, Col 13 (seg B)</td><td>Row 1, Col 13</td><td>Red</td></tr>
+    <tr><td>VREF &rarr; VDD</td><td>Row 11, Col 12 (seg B)</td><td>Row 10, Col 12 (seg B)</td><td>Red (bridge)</td></tr>
+    <tr><td>AGND &rarr; GND</td><td>Row 12, Col 13 (seg B)</td><td>Row 2, Col 13</td><td>Black</td></tr>
+    <tr><td>DGND &rarr; AGND</td><td>Row 17, Col 12 (seg B)</td><td>Row 12, Col 12 (seg B)</td><td>Black (bridge)</td></tr>
+  </tbody>
+</table>
+
+<h3>7d. I2C Connections (T-Cobbler &rarr; PCA9685 header)</h3>
+<table>
+  <thead>
+    <tr><th>Signal</th><th>From</th><th>To</th><th>Color</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>SDA</td><td>Row 4, Col 18 (T-Cob left)</td><td>Row 13, Col 37 (PCA hdr seg E)</td><td>Blue</td></tr>
+    <tr><td>SCL</td><td>Row 5, Col 18 (T-Cob left)</td><td>Row 12, Col 37 (PCA hdr seg E)</td><td>Yellow</td></tr>
+  </tbody>
+</table>
+
+<h3>7e. PCA9685 Header Power &amp; OE</h3>
+<table>
+  <thead>
+    <tr><th>Signal</th><th>From</th><th>To</th><th>Color</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>GND</td><td>Row 10, Col 37 (PCA hdr)</td><td>Row 2, Col 37</td><td>Black</td></tr>
+    <tr><td>OE &rarr; GND</td><td>Row 11, Col 36 (PCA hdr)</td><td>Row 10, Col 36 (GND strip above)</td><td>Black (bridge)</td></tr>
+    <tr><td>VCC &rarr; 3.3V</td><td>Row 14, Col 37 (PCA hdr)</td><td>Row 1, Col 37</td><td>Red</td></tr>
+    <tr><td>V+ &rarr; 5V</td><td>Row 15, Col 37 (PCA hdr)</td><td>Row 3, Col 37 (5V strip)</td><td>Red (thick)</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="offboard">8. Off-Board Wiring</h2>
+
+<p>All panel-mount components (switches, pots, buttons, encoder, LEDs, meters) connect to the
+stripboard via hookup wire. Each external wire is soldered to a pad on the appropriate GPIO strip.
+Use the strip segment beyond the T-Cobbler pins (i.e., away from the board center) for clean
+terminal pads.</p>
+
+<h3>8a. Toggle Switches (SPST, active LOW)</h3>
+<p>Each toggle: one terminal to the GPIO pad, other terminal to GND.
+Switches pull the GPIO LOW when ON (closed). Pull-up resistors on the board hold the GPIO
+HIGH when the switch is OFF (open).</p>
+
+<table>
+  <thead>
+    <tr><th>Switch</th><th>GPIO</th><th>Signal Pad</th><th>GND Pad</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>POWER</td><td>GPIO23</td><td>Row 10, Col 28</td><td>Row 9, Col 28</td><td>Shutdown request only &mdash; do NOT switch 5V power</td></tr>
+    <tr><td>HEAT</td><td>GPIO5</td><td>Row 17, Col 15</td><td>Row 17, Col 25</td><td>ON &rarr; sends HS=1 to Kaleido</td></tr>
+    <tr><td>COOL</td><td>GPIO6</td><td>Row 18, Col 15</td><td>Row 17, Col 25</td><td>ON &rarr; sends CS=1 to Kaleido</td></tr>
+    <tr><td>MODE</td><td>GPIO13</td><td>Row 19, Col 15</td><td>Row 19, Col 25</td><td>ON = AUTO mode</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Shared GND pads:</strong> Multiple switches can share the same GND pad since they all
+  connect to the same GND bus. Just use the nearest convenient GND strip.
+</div>
+
+<h3>8b. Potentiometers (10K linear, via MCP3008)</h3>
+<p>Each pot has 3 pins: outer-1 &rarr; 3.3V, wiper (center) &rarr; MCP3008 channel, outer-2 &rarr; GND.
+The wiper connects to the MCP3008 channel input on segment A (cols 1-9) of the MCP3008 rows.</p>
+
+<table>
+  <thead>
+    <tr><th>Pot</th><th>MCP3008 Ch</th><th>Wiper Pad</th><th>3.3V Pad</th><th>GND Pad</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>BURNER</td><td>CH0 (pin 1)</td><td>Row 10, Col 3</td><td>Row 1, Col 3</td><td>Row 2, Col 3</td></tr>
+    <tr><td>AIR</td><td>CH1 (pin 2)</td><td>Row 11, Col 3</td><td>Row 1, Col 4</td><td>Row 2, Col 4</td></tr>
+    <tr><td>DRUM</td><td>CH2 (pin 3)</td><td>Row 12, Col 3</td><td>Row 1, Col 5</td><td>Row 2, Col 5</td></tr>
+    <tr><td>SCROLL</td><td>CH3 (pin 4)</td><td>Row 13, Col 3</td><td>Row 1, Col 6</td><td>Row 2, Col 6</td></tr>
+  </tbody>
+</table>
+
+<div class="info">
+  <strong>Pot wiring detail:</strong> The wiper pad (col 3) is on segment A of the MCP3008 row.
+  Since segment A (cols 1-9) includes the MCP3008 left pin (col 8), the wiper is directly
+  connected to the MCP3008 channel input via the copper strip &mdash; no jumper needed.
+  The SCROLL pot works identically to the control pots but maps to the graph time axis
+  instead of a roaster parameter.
+</div>
+
+<h3>8c. Momentary Buttons (Normally Open, active LOW)</h3>
+<p>Each button: one terminal to the GPIO pad, other terminal to GND.
+Pull-up resistors and debounce caps are on the board. The button just needs 2 wires.</p>
+
+<table>
+  <thead>
+    <tr><th>Button</th><th>GPIO</th><th>Signal Pad</th><th>GND Source</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>CHARGE</td><td>GPIO16</td><td>Row 20, Col 34</td><td>Row 19, Col 34 (GND strip)</td></tr>
+    <tr><td>FCS</td><td>GPIO26</td><td>Row 21, Col 15</td><td>Row 22, Col 15 (GND strip)</td></tr>
+    <tr><td>FCE</td><td>GPIO20</td><td>Row 21, Col 34</td><td>Row 19, Col 34 (GND strip)</td></tr>
+    <tr><td>SCS</td><td>GPIO21</td><td>Row 22, Col 34</td><td>Row 24, Col 34 (GND bus)</td></tr>
+    <tr><td>SCE</td><td>GPIO19</td><td>Row 20, Col 3</td><td>Row 22, Col 3 (GND strip)</td></tr>
+    <tr><td>DROP</td><td>GPIO12</td><td>Row 18, Col 34</td><td>Row 17, Col 34 (GND strip)</td></tr>
+    <tr><td>SAVE</td><td>GPIO25</td><td>Row 13, Col 34</td><td>Row 12, Col 34 (GND strip)</td></tr>
+    <tr><td>RESET</td><td>GPIO18</td><td>Row 8, Col 28</td><td>Row 9, Col 28 (GND strip)</td></tr>
+  </tbody>
+</table>
+
+<h3>8d. Rotary Encoder (KY-040 / EC11)</h3>
+<p>The encoder has 5 pins: CLK, DT, SW, VCC (3.3V), GND.
+Pull-up resistors and debounce caps (CLK, DT) are on the board.</p>
+
+<table>
+  <thead>
+    <tr><th>Encoder Pin</th><th>GPIO</th><th>Board Pad</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>CLK</td><td>GPIO17</td><td>Row 8, Col 15</td></tr>
+    <tr><td>DT</td><td>GPIO27</td><td>Row 9, Col 15</td></tr>
+    <tr><td>SW</td><td>GPIO22</td><td>Row 10, Col 15</td></tr>
+    <tr><td>VCC (3.3V)</td><td>&mdash;</td><td>Row 1, Col 6 (3.3V bus)</td></tr>
+    <tr><td>GND</td><td>&mdash;</td><td>Row 2, Col 6 (GND bus)</td></tr>
+  </tbody>
+</table>
+
+<h3>8e. PCA9685 Outputs &rarr; VU Meters &amp; LEDs</h3>
+<p>These connections go from the PCA9685 <strong>breakout board output headers</strong> (NOT the
+stripboard) directly to the meters and LEDs. Add series resistors inline with the hookup wire.</p>
+
+<table>
+  <thead>
+    <tr><th>PCA9685 Ch</th><th>Output</th><th>Series R</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>CH0</td><td>VU Meter: BT</td><td>~5.6K (0-500&micro;A) or ~2.7K (0-1mA)</td><td>Calibrate R for your meter's I<sub>fsd</sub></td></tr>
+    <tr><td>CH1</td><td>VU Meter: ET</td><td>Same as above</td><td></td></tr>
+    <tr><td>CH2</td><td>VU Meter: RoR</td><td>Same as above</td><td></td></tr>
+    <tr><td>CH3</td><td>LED: Heater</td><td>220-470&ohm;</td><td>Red/amber LED</td></tr>
+    <tr><td>CH4</td><td>LED: Cooling</td><td>220-470&ohm;</td><td>Blue LED</td></tr>
+    <tr><td>CH5</td><td>LED: Roasting</td><td>220-470&ohm;</td><td>Green LED</td></tr>
+    <tr><td>CH6</td><td>LED: First Crack</td><td>220-470&ohm;</td><td>Yellow LED</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Power LED:</strong> The power LED connects directly to 3.3V (with a series resistor)
+  and GND &mdash; it doesn't need a PCA9685 channel. Wire it to the 3.3V and GND bus strips
+  on the board.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="power">9. Power Wiring</h2>
+
+<h3>Meanwell RT-65B to Stripboard</h3>
+<p>The Meanwell RT-65B has a +5V output (8A). Run this to the Pi's 5V GPIO pin via the stripboard.</p>
+
+<table>
+  <thead>
+    <tr><th>Meanwell Output</th><th>Board Pad</th><th>Connects To</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>+5V</td><td>Row 3, Col 45</td><td>T-Cobbler 5V strip (pins 2/4) &mdash; powers the Pi</td></tr>
+    <tr><td>COM (GND)</td><td>Row 5, Col 45</td><td>T-Cobbler GND strip (pin 6)</td></tr>
+  </tbody>
+</table>
+
+<div class="warning">
+  <strong>Power safety:</strong>
+  <ul>
+    <li>Powering the Pi via GPIO 5V pins bypasses the USB-C port's polyfuse protection.
+        Ensure the Meanwell 5V output is clean and well-regulated (it is &mdash; the RT-65B is
+        a quality supply).</li>
+    <li>Add an inline 3A fuse on the 5V wire for extra protection.</li>
+    <li>Do NOT put a physical switch in the 5V line to the Pi. Use the GPIO23 POWER toggle
+        as a soft shutdown request only.</li>
+    <li>The Meanwell RT-65B also has +12V and -12V outputs &mdash; leave these unconnected
+        unless you add 12V panel LEDs later.</li>
+  </ul>
+</div>
+
+<h3>Power Distribution on Board</h3>
+<pre style="background: var(--surface); padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 0.85em;">
+Meanwell +5V ──► Row 3 right strip (cols 23-47) = 5V bus
+                  ├── T-Cobbler Pin 2 (5V) at col 23 ──► Powers Raspberry Pi
+                  ├── T-Cobbler Pin 4 (5V) at row 4, col 23 ──► 5V available
+                  └── Jumper to PCA9685 V+ (row 15, col 37)
+
+Pi 3.3V regulator ──► T-Cobbler Pin 1 (3V3) at row 3, col 22 ──► 3.3V left strip
+                       ├── Jumper to Row 1 (primary 3.3V bus)
+                       ├── Jumper to Row 23 (secondary 3.3V bus)
+                       ├── Jumper to Row 6, col 24+ (right-side 3.3V bus)
+                       ├── MCP3008 VDD + VREF
+                       ├── PCA9685 VCC (logic)
+                       ├── Pull-up resistors (×14)
+                       └── Pot voltage dividers (×3)
+
+Meanwell COM ──► Row 5 right strip = GND
+                  ├── T-Cobbler Pin 6 (GND) at col 23 ──► Pi ground
+                  ├── Jumper to Row 2 (primary GND bus)
+                  ├── Jumper to Row 24 (secondary GND bus)
+                  ├── MCP3008 AGND + DGND
+                  └── PCA9685 GND
+</pre>
+
+<!-- ============================================================ -->
+<h2 id="build">10. Build Sequence</h2>
+
+<p>Follow this order for the smoothest build. Test at each stage before proceeding.</p>
+
+<ol>
+  <li><strong>Prepare the board</strong>
+    <ul class="checklist">
+      <li>Cut stripboard to 31×47 holes if needed</li>
+      <li>Mark component positions with a pencil on the component side</li>
+      <li>Make ALL 43 track cuts from the copper side (use craft knife + 3mm drill bit)</li>
+      <li>Verify every cut with multimeter continuity mode</li>
+    </ul>
+  </li>
+  <li><strong>Power bus wires</strong>
+    <ul class="checklist">
+      <li>Solder bus wires for rows 1, 2, 23, 24 (3.3V and GND buses)</li>
+      <li>Add bus jumper wires (section 7a)</li>
+      <li>Verify: row 1 has 3.3V from T-Cobbler, row 2 has GND, etc.</li>
+    </ul>
+  </li>
+  <li><strong>T-Cobbler Plus</strong>
+    <ul class="checklist">
+      <li>Solder the T-Cobbler header pins (cols 22-23, rows 3-22)</li>
+      <li>Connect ribbon cable to Pi and verify power/ground on all expected strips</li>
+    </ul>
+  </li>
+  <li><strong>MCP3008 socket &amp; wiring</strong>
+    <ul class="checklist">
+      <li>Solder 16-pin DIP socket (cols 8+11, rows 10-17)</li>
+      <li>Solder decoupling cap (row 10-12, col 13)</li>
+      <li>Solder VDD/VREF and AGND/DGND jumper bridges</li>
+      <li>Solder SPI jumper wires (section 7b)</li>
+      <li>Solder MCP3008 power wires (section 7c)</li>
+      <li>Insert MCP3008 into socket (pin 1 dot toward row 10)</li>
+      <li>Verify: <code>ls /dev/spidev0.0</code> on Pi, then test with 1 pot</li>
+    </ul>
+  </li>
+  <li><strong>Pull-up resistors &amp; debounce caps</strong>
+    <ul class="checklist">
+      <li>Solder all 14 pull-up resistors (section 5)</li>
+      <li>Solder all 10 capacitors (section 6)</li>
+    </ul>
+  </li>
+  <li><strong>Test switches &amp; buttons</strong>
+    <ul class="checklist">
+      <li>Wire up 1 toggle switch and 1 button temporarily</li>
+      <li>Verify GPIO reads change when pressed/toggled</li>
+      <li>Wire remaining switches and buttons</li>
+    </ul>
+  </li>
+  <li><strong>PCA9685 header &amp; wiring</strong>
+    <ul class="checklist">
+      <li>Solder 6-pin header at col 35, rows 10-15</li>
+      <li>Solder I2C and power jumper wires (sections 7d, 7e)</li>
+      <li>Connect PCA9685 breakout via DuPont wires</li>
+      <li>Verify: <code>i2cdetect -y 1</code> shows 0x40</li>
+      <li>Test with 1 VU meter</li>
+    </ul>
+  </li>
+  <li><strong>Final assembly</strong>
+    <ul class="checklist">
+      <li>Wire all pots, remaining buttons, encoder</li>
+      <li>Wire VU meters with calibrated series resistors</li>
+      <li>Wire LEDs with series resistors</li>
+      <li>Run full software test</li>
+    </ul>
+  </li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="test">11. Testing Checklist</h2>
+
+<table>
+  <thead>
+    <tr><th>Test</th><th>Method</th><th>Expected Result</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Track cuts</td><td>Multimeter continuity across each cut</td><td>No beep = cut is clean</td></tr>
+    <tr><td>Power rails</td><td>Multimeter DC voltage on rows 1/23 vs 2/24</td><td>3.3V (±0.1V)</td></tr>
+    <tr><td>5V rail</td><td>Multimeter on row 3 right segment</td><td>5.0V (±0.2V)</td></tr>
+    <tr><td>No shorts</td><td>Continuity between 3.3V bus and GND bus</td><td>No beep (open circuit)</td></tr>
+    <tr><td>MCP3008 SPI</td><td><code>ls /dev/spidev0.0</code></td><td>Device file exists</td></tr>
+    <tr><td>MCP3008 read</td><td>Read CH0 with pot at 0%, 50%, 100%</td><td>Values: ~0, ~512, ~1023</td></tr>
+    <tr><td>PCA9685 I2C</td><td><code>i2cdetect -y 1</code></td><td>Shows 0x40</td></tr>
+    <tr><td>Button press</td><td>Read GPIO with <code>gpioget</code></td><td>HIGH idle, LOW when pressed</td></tr>
+    <tr><td>Toggle switch</td><td>Read GPIO during toggle</td><td>State changes cleanly</td></tr>
+    <tr><td>Encoder rotation</td><td>Monitor CLK/DT edges</td><td>Quadrature pattern on rotation</td></tr>
+    <tr><td>VU meter</td><td>Set PCA9685 CH0 to 50% duty</td><td>Meter reads mid-scale</td></tr>
+    <tr><td>LED</td><td>Set PCA9685 CH3 to 100% duty</td><td>LED lights up</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<!-- SVG LAYOUT DIAGRAM -->
+<!-- ============================================================ -->
+<script>
+(function() {
+  const ROWS = 31;
+  const COLS = 47;
+  const PITCH = 18;
+  const MARGIN = { top: 35, left: 55, right: 160, bottom: 30 };
+  const HOLE_R = 3;
+
+  let currentScale = 1;
+  const svgW = MARGIN.left + COLS * PITCH + MARGIN.right;
+  const svgH = MARGIN.top + ROWS * PITCH + MARGIN.bottom;
+
+  const svg = document.getElementById('board-svg');
+  svg.setAttribute('width', svgW);
+  svg.setAttribute('height', svgH);
+  svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+  svg.style.minWidth = svgW + 'px';
+
+  function gx(col) { return MARGIN.left + (col - 1) * PITCH; }
+  function gy(row) { return MARGIN.top + (row - 1) * PITCH; }
+
+  // Helper to create SVG elements
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    (parent || svg).appendChild(e);
+    return e;
+  }
+
+  // ---- Board background ----
+  el('rect', {
+    x: MARGIN.left - PITCH/2, y: MARGIN.top - PITCH/2,
+    width: COLS * PITCH, height: ROWS * PITCH,
+    fill: '#c4a265', rx: 4, stroke: '#8b7355', 'stroke-width': 2
+  });
+
+  // ---- Column labels ----
+  for (let c = 1; c <= COLS; c++) {
+    if (c % 5 === 0 || c === 1) {
+      el('text', {
+        x: gx(c), y: MARGIN.top - PITCH/2 - 6,
+        'text-anchor': 'middle', fill: '#888', 'font-size': '9px', 'font-family': 'monospace'
+      }).textContent = c;
+    }
+  }
+
+  // ---- Row labels ----
+  for (let r = 1; r <= ROWS; r++) {
+    el('text', {
+      x: MARGIN.left - PITCH/2 - 8, y: gy(r) + 3,
+      'text-anchor': 'end', fill: '#888', 'font-size': '9px', 'font-family': 'monospace'
+    }).textContent = r;
+  }
+
+  // ---- Copper strips (faint horizontal lines) ----
+  for (let r = 1; r <= ROWS; r++) {
+    el('line', {
+      x1: gx(1) - 5, y1: gy(r), x2: gx(COLS) + 5, y2: gy(r),
+      stroke: '#b8733380', 'stroke-width': 3
+    });
+  }
+
+  // ---- Track cuts ----
+  const cuts = [];
+  // T-Cobbler: between col 22-23
+  for (let r = 3; r <= 22; r++) cuts.push({row: r, afterCol: 22, label: 'T-Cobbler isolation'});
+  // MCP3008 DIP center: between col 9-10
+  for (let r = 10; r <= 17; r++) cuts.push({row: r, afterCol: 9, label: 'MCP3008 DIP center'});
+  // MCP3008 isolation: between col 14-15
+  for (let r = 10; r <= 17; r++) cuts.push({row: r, afterCol: 14, label: 'MCP3008 isolation'});
+  // PCA9685 isolation: between col 34-35
+  for (let r = 10; r <= 15; r++) cuts.push({row: r, afterCol: 34, label: 'PCA9685 isolation'});
+  // Right-side 3V3 bus: row 6 between col 23-24
+  cuts.push({row: 6, afterCol: 23, label: 'Right 3V3 bus isolation'});
+
+  cuts.forEach(c => {
+    const cx = (gx(c.afterCol) + gx(c.afterCol + 1)) / 2;
+    const cy = gy(c.row);
+    const g = el('g', {'class': 'cut-mark'});
+    el('line', { x1: cx-3, y1: cy-3, x2: cx+3, y2: cy+3, stroke: '#ff3333', 'stroke-width': 2.5 }, g);
+    el('line', { x1: cx+3, y1: cy-3, x2: cx-3, y2: cy+3, stroke: '#ff3333', 'stroke-width': 2.5 }, g);
+    // Tooltip
+    const title = el('title', {}, g);
+    title.textContent = `CUT: Row ${c.row}, between cols ${c.afterCol}-${c.afterCol+1} (${c.label})`;
+  });
+
+  // ---- Holes ----
+  for (let r = 1; r <= ROWS; r++) {
+    for (let c = 1; c <= COLS; c++) {
+      el('circle', {
+        cx: gx(c), cy: gy(r), r: HOLE_R,
+        fill: '#3a2a1a', stroke: '#b8733360', 'stroke-width': 0.5
+      });
+    }
+  }
+
+  // ---- Power rail highlights ----
+  const railDefs = [
+    {row: 1, color: '#e6a44e', label: '3V3 BUS'},
+    {row: 2, color: '#555', label: 'GND BUS'},
+    {row: 23, color: '#e6a44e', label: '3V3 BUS (sec.)'},
+    {row: 24, color: '#555', label: 'GND BUS (sec.)'},
+  ];
+  railDefs.forEach(rd => {
+    el('rect', {
+      x: gx(1) - 6, y: gy(rd.row) - 5,
+      width: COLS * PITCH + 3, height: 10,
+      fill: rd.color, opacity: 0.25, rx: 3
+    });
+    el('text', {
+      x: gx(COLS) + 12, y: gy(rd.row) + 3,
+      fill: rd.color, 'font-size': '9px', 'font-weight': 'bold', 'font-family': 'monospace'
+    }).textContent = rd.label;
+  });
+
+  // Right-side 3V3 bus highlight (row 6, cols 24-47)
+  el('rect', {
+    x: gx(24) - 6, y: gy(6) - 5,
+    width: (47 - 24 + 1) * PITCH + 3, height: 10,
+    fill: '#e6a44e', opacity: 0.2, rx: 3
+  });
+  el('text', {
+    x: gx(COLS) + 12, y: gy(6) + 3,
+    fill: '#e6a44e', 'font-size': '8px', 'font-family': 'monospace'
+  }).textContent = '3V3 R-BUS';
+
+  // 5V rail highlights (rows 3-4 right side)
+  [3, 4].forEach(r => {
+    el('rect', {
+      x: gx(23) - 6, y: gy(r) - 5,
+      width: (47 - 23 + 1) * PITCH + 3, height: 10,
+      fill: '#cc4444', opacity: 0.2, rx: 3
+    });
+  });
+  el('text', {
+    x: gx(COLS) + 12, y: gy(3) + 3,
+    fill: '#cc4444', 'font-size': '9px', 'font-weight': 'bold', 'font-family': 'monospace'
+  }).textContent = '5V (PWR IN)';
+
+  // ---- T-Cobbler Plus ----
+  const tcPins = [
+    ['3V3','5V'], ['SDA','5V'], ['SCL','GND'], ['#4','#14'], ['GND','#15'],
+    ['#17','#18'], ['#27','GND'], ['#22','#23'], ['3V3','#24'],
+    ['MOSI','GND'], ['MISO','#25'], ['SCLK','CE0'], ['GND','CE1'],
+    ['ID_SD','ID_SC'], ['#5','GND'], ['#6','#12'], ['#13','GND'],
+    ['#19','#16'], ['#26','#20'], ['GND','#21']
+  ];
+
+  // T-Cobbler outline
+  el('rect', {
+    x: gx(22) - 7, y: gy(3) - 10,
+    width: PITCH + 14, height: 20 * PITCH + 10,
+    fill: '#2d5a2d', stroke: '#4a8a4a', 'stroke-width': 1.5, rx: 4, opacity: 0.85
+  });
+  // IDC connector indicator at top
+  el('rect', {
+    x: gx(22) - 5, y: gy(3) - 22,
+    width: PITCH + 10, height: 14,
+    fill: '#333', stroke: '#666', 'stroke-width': 1, rx: 2
+  });
+  el('text', {
+    x: gx(22) + PITCH/2, y: gy(3) - 13,
+    'text-anchor': 'middle', fill: '#999', 'font-size': '7px', 'font-family': 'monospace'
+  }).textContent = 'RIBBON';
+
+  el('text', {
+    x: gx(22) + PITCH/2, y: gy(3) - 25,
+    'text-anchor': 'middle', fill: '#4a8a4a', 'font-size': '10px', 'font-weight': 'bold'
+  }).textContent = 'T-COBBLER';
+
+  // T-Cobbler pin labels
+  tcPins.forEach((pair, i) => {
+    const row = i + 3;
+    // Left pin label
+    el('text', {
+      x: gx(22) - 10, y: gy(row) + 3,
+      'text-anchor': 'end', fill: '#8c8', 'font-size': '7px', 'font-family': 'monospace'
+    }).textContent = pair[0];
+    // Right pin label
+    el('text', {
+      x: gx(23) + 10, y: gy(row) + 3,
+      'text-anchor': 'start', fill: '#8c8', 'font-size': '7px', 'font-family': 'monospace'
+    }).textContent = pair[1];
+    // Pin dots
+    el('circle', { cx: gx(22), cy: gy(row), r: HOLE_R + 1, fill: '#4a8a4a', stroke: '#6b6' });
+    el('circle', { cx: gx(23), cy: gy(row), r: HOLE_R + 1, fill: '#4a8a4a', stroke: '#6b6' });
+  });
+
+  // ---- MCP3008 ----
+  const mcpLeftPins = ['CH0','CH1','CH2','CH3','CH4','CH5','CH6','CH7'];
+  const mcpRightPins = ['VDD','VREF','AGND','CLK','DOUT','DIN','CS','DGND'];
+
+  el('rect', {
+    x: gx(8) - 6, y: gy(10) - 8,
+    width: 3 * PITCH + 12, height: 8 * PITCH + 6,
+    fill: '#1a4a7a', stroke: '#4a8ace', 'stroke-width': 1.5, rx: 3, opacity: 0.85
+  });
+  // Notch at top
+  el('path', {
+    d: `M ${gx(9)+2} ${gy(10)-8} A 4 4 0 0 0 ${gx(10)-2} ${gy(10)-8}`,
+    fill: 'none', stroke: '#4a8ace', 'stroke-width': 1.5
+  });
+  el('text', {
+    x: gx(9) + PITCH/2, y: gy(10) - 12,
+    'text-anchor': 'middle', fill: '#4a8ace', 'font-size': '9px', 'font-weight': 'bold'
+  }).textContent = 'MCP3008';
+
+  mcpLeftPins.forEach((pin, i) => {
+    const row = 10 + i;
+    el('text', {
+      x: gx(8) - 8, y: gy(row) + 3,
+      'text-anchor': 'end', fill: '#8ac', 'font-size': '7px', 'font-family': 'monospace'
+    }).textContent = pin;
+    el('circle', { cx: gx(8), cy: gy(row), r: HOLE_R + 1, fill: '#2a5a9a', stroke: '#4a8ace' });
+  });
+
+  mcpRightPins.forEach((pin, i) => {
+    const row = 10 + i;
+    el('text', {
+      x: gx(11) + 8, y: gy(row) + 3,
+      'text-anchor': 'start', fill: '#8ac', 'font-size': '7px', 'font-family': 'monospace'
+    }).textContent = pin;
+    el('circle', { cx: gx(11), cy: gy(row), r: HOLE_R + 1, fill: '#2a5a9a', stroke: '#4a8ace' });
+  });
+
+  // ---- PCA9685 Header ----
+  const pcaPins = ['GND','OE','SCL','SDA','VCC','V+'];
+
+  el('rect', {
+    x: gx(35) - 6, y: gy(10) - 8,
+    width: 12, height: 6 * PITCH + 6,
+    fill: '#5a2d5a', stroke: '#a05aa0', 'stroke-width': 1.5, rx: 3, opacity: 0.85
+  });
+  el('text', {
+    x: gx(35), y: gy(10) - 12,
+    'text-anchor': 'middle', fill: '#a05aa0', 'font-size': '8px', 'font-weight': 'bold'
+  }).textContent = 'PCA9685';
+  el('text', {
+    x: gx(35), y: gy(10) - 3,
+    'text-anchor': 'middle', fill: '#a05aa0', 'font-size': '7px'
+  }).textContent = 'HDR';
+
+  pcaPins.forEach((pin, i) => {
+    const row = 10 + i;
+    el('text', {
+      x: gx(35) + 10, y: gy(row) + 3,
+      'text-anchor': 'start', fill: '#c8c', 'font-size': '7px', 'font-family': 'monospace'
+    }).textContent = pin;
+    el('circle', { cx: gx(35), cy: gy(row), r: HOLE_R + 1, fill: '#5a2d5a', stroke: '#a05aa0' });
+  });
+
+  // ---- Pull-up Resistors (green lines) ----
+  const pullups = [
+    {from: [8,18], to: [11,18], label: 'R: GPIO17 ENC_CLK'},
+    {from: [9,17], to: [11,17], label: 'R: GPIO27 ENC_DT'},
+    {from: [10,16], to: [11,16], label: 'R: GPIO22 ENC_SW'},
+    {from: [10,27], to: [6,27], label: 'R: GPIO23 PWR_TOG'},
+    {from: [17,20], to: [11,20], label: 'R: GPIO5 HEAT_TOG'},
+    {from: [18,19], to: [11,19], label: 'R: GPIO6 COOL_TOG'},
+    {from: [19,18], to: [23,18], label: 'R: GPIO13 MODE_TOG'},
+    {from: [20,30], to: [23,30], label: 'R: GPIO16 CHARGE'},
+    {from: [21,17], to: [23,17], label: 'R: GPIO26 FCS'},
+    {from: [21,31], to: [23,31], label: 'R: GPIO20 FCE'},
+    {from: [22,32], to: [23,32], label: 'R: GPIO21 SCS'},
+    {from: [20,16], to: [23,16], label: 'R: GPIO19 SCE'},
+    {from: [18,29], to: [23,29], label: 'R: GPIO12 DROP'},
+    {from: [13,28], to: [6,28], label: 'R: GPIO25 SAVE'},
+    {from: [8,26], to: [6,26], label: 'R: GPIO18 RESET'},
+  ];
+
+  pullups.forEach(p => {
+    const g = el('g', {'class': 'pullup'});
+    // Resistor body (zigzag simplified as a thick line)
+    el('line', {
+      x1: gx(p.from[1]), y1: gy(p.from[0]),
+      x2: gx(p.to[1]), y2: gy(p.to[0]),
+      stroke: '#6bbd6b', 'stroke-width': 2.5, 'stroke-dasharray': '3,2', opacity: 0.8
+    }, g);
+    // End dots
+    el('circle', { cx: gx(p.from[1]), cy: gy(p.from[0]), r: 2.5, fill: '#6bbd6b' }, g);
+    el('circle', { cx: gx(p.to[1]), cy: gy(p.to[0]), r: 2.5, fill: '#6bbd6b' }, g);
+    const title = el('title', {}, g);
+    title.textContent = p.label + ' (10K)';
+  });
+
+  // ---- Debounce Capacitors (blue lines) ----
+  const caps = [
+    {from: [8,21], to: [7,21], label: 'C: GPIO17 ENC_CLK debounce'},
+    {from: [9,20], to: [7,20], label: 'C: GPIO27 ENC_DT debounce'},
+    {from: [20,32], to: [19,32], label: 'C: GPIO16 CHARGE debounce'},
+    {from: [21,16], to: [22,16], label: 'C: GPIO26 FCS debounce'},
+    {from: [21,26], to: [19,26], label: 'C: GPIO20 FCE debounce'},
+    {from: [22,33], to: [24,33], label: 'C: GPIO21 SCS debounce'},
+    {from: [20,15], to: [22,15], label: 'C: GPIO19 SCE debounce'},
+    {from: [18,31], to: [17,31], label: 'C: GPIO12 DROP debounce'},
+    {from: [13,30], to: [12,30], label: 'C: GPIO25 SAVE debounce'},
+    {from: [8,25], to: [9,25], label: 'C: GPIO18 RESET debounce'},
+    {from: [10,13], to: [12,13], label: 'C: MCP3008 VDD decoupling'},
+  ];
+
+  caps.forEach(p => {
+    const g = el('g', {'class': 'cap'});
+    el('line', {
+      x1: gx(p.from[1]), y1: gy(p.from[0]),
+      x2: gx(p.to[1]), y2: gy(p.to[0]),
+      stroke: '#6b9edd', 'stroke-width': 2.5, opacity: 0.8
+    }, g);
+    el('circle', { cx: gx(p.from[1]), cy: gy(p.from[0]), r: 2.5, fill: '#6b9edd' }, g);
+    el('circle', { cx: gx(p.to[1]), cy: gy(p.to[0]), r: 2.5, fill: '#6b9edd' }, g);
+    const title = el('title', {}, g);
+    title.textContent = p.label + ' (0.1uF)';
+  });
+
+  // ---- Jumper Wires (on component side) ----
+  const jumpers = [
+    // Power bus jumpers
+    {from: [3,20], to: [1,3], color: '#ff6666', label: 'W: 3V3 to primary bus'},
+    {from: [11,15], to: [1,8], color: '#ff6666', label: 'W: 3V3 to primary bus'},
+    {from: [1,40], to: [23,40], color: '#ff6666', label: 'W: 3V3 to secondary bus'},
+    {from: [1,25], to: [6,25], color: '#ff6666', label: 'W: 3V3 to right bus'},
+    {from: [7,20], to: [2,3], color: '#666', label: 'W: GND to primary bus'},
+    {from: [5,25], to: [2,40], color: '#666', label: 'W: GND to primary bus'},
+    {from: [22,20], to: [24,3], color: '#666', label: 'W: GND to secondary bus'},
+    {from: [9,25], to: [24,40], color: '#666', label: 'W: GND to secondary bus'},
+    // SPI jumpers
+    {from: [12,16], to: [15,12], color: '#dddd44', label: 'W: MOSI -> DIN'},
+    {from: [13,16], to: [14,12], color: '#ee8833', label: 'W: MISO -> DOUT'},
+    {from: [14,16], to: [13,12], color: '#44dd44', label: 'W: SCLK -> CLK'},
+    {from: [14,26], to: [16,12], color: '#4488dd', label: 'W: CE0 -> CS'},
+    // MCP3008 power
+    {from: [10,13], to: [1,13], color: '#ff6666', label: 'W: MCP VDD -> 3V3'},
+    {from: [11,12], to: [10,12], color: '#ff6666', label: 'W: MCP VREF -> VDD bridge'},
+    {from: [12,13], to: [2,13], color: '#666', label: 'W: MCP AGND -> GND'},
+    {from: [17,12], to: [12,12], color: '#666', label: 'W: MCP DGND -> AGND bridge'},
+    // I2C to PCA9685
+    {from: [4,18], to: [13,37], color: '#4488dd', label: 'W: SDA -> PCA9685'},
+    {from: [5,18], to: [12,37], color: '#dddd44', label: 'W: SCL -> PCA9685'},
+    // PCA9685 power
+    {from: [10,37], to: [2,37], color: '#666', label: 'W: PCA GND'},
+    {from: [11,36], to: [10,36], color: '#666', label: 'W: PCA OE -> GND'},
+    {from: [14,37], to: [1,37], color: '#ff6666', label: 'W: PCA VCC -> 3V3'},
+    {from: [15,37], to: [3,37], color: '#cc3333', label: 'W: PCA V+ -> 5V'},
+  ];
+
+  jumpers.forEach(j => {
+    const g = el('g', {'class': 'jumper'});
+    el('line', {
+      x1: gx(j.from[1]), y1: gy(j.from[0]),
+      x2: gx(j.to[1]), y2: gy(j.to[0]),
+      stroke: j.color, 'stroke-width': 1.5, opacity: 0.7, 'stroke-linecap': 'round'
+    }, g);
+    el('circle', { cx: gx(j.from[1]), cy: gy(j.from[0]), r: 2, fill: j.color }, g);
+    el('circle', { cx: gx(j.to[1]), cy: gy(j.to[0]), r: 2, fill: j.color }, g);
+    const title = el('title', {}, g);
+    title.textContent = j.label;
+  });
+
+  // ---- Terminal labels (right edge) ----
+  const termLabels = [
+    {row: 3, text: '5V PWR IN', color: '#cc4444'},
+    {row: 4, text: '5V', color: '#cc4444'},
+    {row: 5, text: 'GND PWR IN', color: '#888'},
+    {row: 8, text: 'ENC CLK / RESET', color: '#8c8'},
+    {row: 9, text: 'ENC DT', color: '#8c8'},
+    {row: 10, text: 'ENC SW / PWR TOG', color: '#8c8'},
+    {row: 13, text: 'SCROLL / SAVE', color: '#8c8'},
+    {row: 17, text: 'HEAT TOG', color: '#8c8'},
+    {row: 18, text: 'COOL TOG / DROP', color: '#8c8'},
+    {row: 19, text: 'MODE TOG / CHARGE GND', color: '#8c8'},
+    {row: 20, text: 'SCE / CHARGE', color: '#8c8'},
+    {row: 21, text: 'FCS / FCE', color: '#8c8'},
+    {row: 22, text: 'GND / SCS', color: '#8c8'},
+  ];
+
+  termLabels.forEach(t => {
+    el('text', {
+      x: gx(COLS) + 55, y: gy(t.row) + 3,
+      'text-anchor': 'start', fill: t.color, 'font-size': '8px', 'font-family': 'monospace'
+    }).textContent = t.text;
+  });
+
+  // ---- Pot terminal labels (left edge) ----
+  const potLabels = [
+    {row: 10, text: 'BURNER'},
+    {row: 11, text: 'AIR'},
+    {row: 12, text: 'DRUM'},
+    {row: 13, text: 'SCROLL'},
+  ];
+  potLabels.forEach(t => {
+    el('text', {
+      x: gx(1) - 20, y: gy(t.row) + 3,
+      'text-anchor': 'end', fill: '#8ac', 'font-size': '8px', 'font-family': 'monospace'
+    }).textContent = t.text;
+    // Indicator arrow
+    el('line', {
+      x1: gx(1) - 15, y1: gy(t.row),
+      x2: gx(3), y2: gy(t.row),
+      stroke: '#4a8ace', 'stroke-width': 1, 'stroke-dasharray': '2,2', 'marker-end': 'none'
+    });
+  });
+
+  // ---- Power input terminal (right edge) ----
+  el('rect', {
+    x: gx(44), y: gy(3) - 12,
+    width: 4 * PITCH, height: 3 * PITCH + 14,
+    fill: 'none', stroke: '#cc4444', 'stroke-width': 1.5, rx: 4, 'stroke-dasharray': '4,2'
+  });
+  el('text', {
+    x: gx(45), y: gy(3) - 16,
+    'text-anchor': 'middle', fill: '#cc4444', 'font-size': '8px', 'font-weight': 'bold'
+  }).textContent = 'PWR IN';
+
+  // ---- Segment labels (for MCP3008 rows) ----
+  const segY = gy(18) + 12;
+  const segs = [
+    {x1: 1, x2: 9, label: 'Seg A'},
+    {x1: 10, x2: 14, label: 'Seg B'},
+    {x1: 15, x2: 22, label: 'Seg C'},
+    {x1: 23, x2: 34, label: 'Seg D'},
+    {x1: 35, x2: 47, label: 'Seg E'},
+  ];
+  segs.forEach(s => {
+    const midX = (gx(s.x1) + gx(s.x2)) / 2;
+    el('text', {
+      x: midX, y: segY,
+      'text-anchor': 'middle', fill: '#666', 'font-size': '7px', 'font-style': 'italic'
+    }).textContent = s.label;
+    el('line', {
+      x1: gx(s.x1) - 3, y1: segY - 6,
+      x2: gx(s.x2) + 3, y2: segY - 6,
+      stroke: '#444', 'stroke-width': 0.5
+    });
+  });
+  el('text', {
+    x: gx(24) - 5, y: segY + 8,
+    fill: '#555', 'font-size': '6px', 'font-style': 'italic'
+  }).textContent = '(strip segments on rows 10-17 only)';
+
+  // ---- Title ----
+  el('text', {
+    x: svgW / 2, y: 14,
+    'text-anchor': 'middle', fill: '#e6a44e',
+    'font-size': '12px', 'font-weight': 'bold'
+  }).textContent = 'ROASTMASTER STRIPBOARD — COMPONENT SIDE (TOP VIEW)';
+
+  // ---- Board dimensions label ----
+  el('text', {
+    x: svgW / 2, y: svgH - 5,
+    'text-anchor': 'middle', fill: '#666',
+    'font-size': '9px'
+  }).textContent = '80mm × 120mm stripboard — 31 rows × 47 cols — strips run horizontal →';
+
+})();
+
+// ---- Zoom controls ----
+let currentScale = 1;
+function zoomBoard(factor) {
+  const svg = document.getElementById('board-svg');
+  if (factor === 0) { currentScale = 1; }
+  else { currentScale *= factor; }
+  currentScale = Math.max(0.5, Math.min(3, currentScale));
+  svg.style.transform = `scale(${currentScale})`;
+  svg.style.transformOrigin = 'top left';
+}
+</script>
+
+</body>
+</html>

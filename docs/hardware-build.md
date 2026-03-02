@@ -7,6 +7,9 @@ physical enclosure with switches, potentiometers, LED indicators, and analog
 VU meters connected to a Raspberry Pi. The Pi runs the RoastMaster software
 and communicates with the Kaleido M1 Lite roaster over USB serial.
 
+For a concrete stripboard implementation of the MCP3008 + PCA9685 interface,
+see `docs/stripboard-interface-board.md`.
+
 ```
                     +-------------------------------+
                     |       ROASTMASTER PANEL        |
@@ -17,10 +20,11 @@ and communicates with the Kaleido M1 Lite roaster over USB serial.
                     |  (o) MODE                      |
                     |                                |
                     |  BURNER [===]  AIR [===]        |
-                    |  DRUM   [===]                   |
+                    |  DRUM   [===]  SCROLL [===]    |
                     |                                |
                     |  [CHG] [FCS] [FCE]  (@) BROWSE  |
                     |  [SCS] [SCE] [DRP]  [SAVE]     |
+                    |  [RST]                          |
                     |                                |
                     |  * PWR  * HEAT  * COOL         |
                     |  * ROAST  * FC                  |
@@ -127,17 +131,24 @@ room to spare.
 | Potentiometer — BURNER | 10K linear (B10K), panel-mount | 1 | $3 | Maps to 0-100% heater power |
 | Potentiometer — AIR | 10K linear (B10K), panel-mount | 1 | $3 | Maps to 0-100% fan speed |
 | Potentiometer — DRUM | 10K linear (B10K), panel-mount | 1 | $3 | Maps to 0-100% drum speed |
-| Knobs | Aluminium or bakelite, 6mm shaft | 3 | $5 (pack) | Retro look — chicken-head or pointer knobs |
-| MCP3008 | 8-ch 10-bit SPI ADC, DIP-16 | 1 | $4 | Reads all 3 pots. 5 spare channels |
+| Potentiometer — SCROLL | 10K linear (B10K), panel-mount | 1 | $3 | Graph time-axis scroll. Center = live view, left = scroll back |
+| Knobs | Aluminium or bakelite, 6mm shaft | 4 | $5 (pack) | Retro look — chicken-head or pointer knobs |
+| MCP3008 | 8-ch 10-bit SPI ADC, DIP-16 | 1 | $4 | Reads all 4 pots. 4 spare channels |
 | 16-pin DIP socket | For MCP3008 | 1 | $0.50 | Allows replacement without desoldering |
 | 0.1 uF ceramic capacitor | Decoupling cap for MCP3008 | 1 | $0.10 | Place close to VDD pin |
 
 **Wiring:** Each pot: one outer pin to 3.3V, other outer pin to GND, wiper
-(center) to an MCP3008 analog input channel (CH0-CH2).
+(center) to an MCP3008 analog input channel (CH0-CH3).
 
-### 3c. Momentary Push Buttons (6)
+**SCROLL pot behavior:** The ADC value (0-1023) maps to the graph time axis.
+The upper ~10% of travel (~920-1023) snaps to "live" mode (graph tracks
+current time). Below that, the value maps proportionally across the roast
+timeline, scrolling the graph left into history. A deadband of ~10 ADC
+counts prevents jitter.
 
-Panel-mount momentary push buttons for roast event marking.
+### 3c. Momentary Push Buttons (7)
+
+Panel-mount momentary push buttons for roast event marking and system control.
 
 | Part | Spec | Qty | Est. Price | Notes |
 |------|------|-----|-----------|-------|
@@ -147,8 +158,9 @@ Panel-mount momentary push buttons for roast event marking.
 | Momentary push button — SCS | Normally open, panel-mount | 1 | $2 | Second Crack Start |
 | Momentary push button — SCE | Normally open, panel-mount | 1 | $2 | Second Crack End (*) |
 | Momentary push button — DROP | Normally open, panel-mount | 1 | $2 | Marks drop / end of roast |
-| 10K pull-up resistors | 1/4W through-hole | 6 | $1 (pack) | One per button (or use RPi internal pull-ups) |
-| 0.1 uF ceramic capacitors | Debounce caps | 6 | $1 (pack) | One per button, wired across switch terminals |
+| Momentary push button — RESET | Normally open, panel-mount | 1 | $2 | Resets roast (clears data, returns to idle) |
+| 10K pull-up resistors | 1/4W through-hole | 7 | $1 (pack) | One per button (or use RPi internal pull-ups) |
+| 0.1 uF ceramic capacitors | Debounce caps | 7 | $1 (pack) | One per button, wired across switch terminals |
 
 **(*) Software note:** The current software has single `FIRST_CRACK` and
 `SECOND_CRACK` events. We will need to add `FIRST_CRACK_END` and
@@ -371,6 +383,7 @@ diagram at the top of this document.
 | 40 | GPIO21 | SCS (Second Crack Start) button |
 | 35 | GPIO19 | SCE (Second Crack End) button |
 | 32 | GPIO12 | DROP button |
+| 12 | GPIO18 | RESET button |
 | 22 | GPIO25 | SAVE button |
 
 ### Rotary Encoder (Profile Browser)
@@ -398,7 +411,8 @@ diagram at the top of this document.
 | CH0 | Potentiometer: Burner |
 | CH1 | Potentiometer: Air |
 | CH2 | Potentiometer: Drum |
-| CH3-CH7 | Spare |
+| CH3 | Potentiometer: Scroll (graph time axis) |
+| CH4-CH7 | Spare |
 
 ### Power
 | RPi Pin | Function |
@@ -407,7 +421,7 @@ diagram at the top of this document.
 | 2 | 5V out (for PCA9685 V+, VU meters if needed) |
 | 6, 9, 14, etc. | GND (use multiple for clean grounding) |
 
-**Total GPIO used:** 20 pins (4 SPI + 2 I2C + 4 toggles + 7 buttons + 3 encoder).
+**Total GPIO used:** 21 pins (4 SPI + 2 I2C + 4 toggles + 8 buttons + 3 encoder).
 Well within the Pi's usable GPIO, with room to spare.
 
 ---
@@ -451,8 +465,8 @@ To support this panel:
 | Core platform (Pi, PSU, SD) | 3 | $75 |
 | Display | 1 | $35-55 |
 | Toggle switches | 4 | $12 |
-| Potentiometers + knobs | 3+3 | $14 |
-| Momentary buttons (events + save) | 7 | $14 |
+| Potentiometers + knobs | 4+4 | $17 |
+| Momentary buttons (events + reset + save) | 8 | $16 |
 | Rotary encoder + knob | 1+1 | $5 |
 | MCP3008 ADC + socket | 2 | $5 |
 | PCA9685 PWM driver | 1 | $6 |
@@ -462,7 +476,7 @@ To support this panel:
 | Wiring, connectors, cable | assorted | $30 |
 | Enclosure | 1 | $15-30 |
 | USB cable (to Kaleido) | 1 | $5 |
-| **TOTAL** | | **~$260-310** |
+| **TOTAL** | | **~$265-315** |
 
 All parts are readily available from Amazon, Adafruit, SparkFun, Mouser,
 or AliExpress.
@@ -507,20 +521,21 @@ Recommended build sequence:
 
                     3.3V
                      |
-            +--------+--------+
-            |        |        |
-         [POT_1]  [POT_2]  [POT_3]
-            |        |        |
-          CH0      CH1      CH2
-            |        |        |
-         +--+--------+--------+--+
-         |        MCP3008         |
-         |  VDD=3.3V  VREF=3.3V  |
-         |  CLK=GPIO11            |
-         |  DOUT=GPIO9            |
-         |  DIN=GPIO10            |
-         |  CS=GPIO8              |
-         +------------------------+
+            +--------+--------+--------+
+            |        |        |        |
+         [POT_1]  [POT_2]  [POT_3]  [POT_4]
+         BURNER    AIR      DRUM     SCROLL
+            |        |        |        |
+          CH0      CH1      CH2      CH3
+            |        |        |        |
+         +--+--------+--------+--------+--+
+         |           MCP3008               |
+         |  VDD=3.3V  VREF=3.3V           |
+         |  CLK=GPIO11                     |
+         |  DOUT=GPIO9                     |
+         |  DIN=GPIO10                     |
+         |  CS=GPIO8                       |
+         +--+------------------------------+
 
 
          +------------------------+

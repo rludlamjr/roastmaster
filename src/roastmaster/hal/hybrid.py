@@ -2,8 +2,11 @@
 
 When running with --gpio, this compositor reads events from both the
 keyboard (for roast-event keys like F1=CHARGE that have no physical button)
-and GPIO (for toggle switches and potentiometers). Pot state always comes
-from GPIO when available, since that's the physical ground truth.
+and GPIO (for toggle switches and potentiometers).
+
+Pot state comes from GPIO when the MCP3008 ADC is available.  If the ADC
+is absent (pots_available is False), pot state falls back to the keyboard
+backend so keyboard +/- controls still work.
 """
 
 from __future__ import annotations
@@ -30,8 +33,14 @@ class HybridInput:
 
     @property
     def state(self) -> InputState:
-        """Pot state from GPIO (ground truth for physical controls)."""
-        return self._gpio.state  # type: ignore[union-attr]
+        """Pot state from GPIO when MCP3008 is available, else keyboard.
+
+        When the MCP3008 ADC is present, physical pots are ground truth.
+        When it's absent, keyboard +/- controls drive the pot values instead.
+        """
+        if getattr(self._gpio, "pots_available", False):
+            return self._gpio.state  # type: ignore[union-attr]
+        return self._keyboard.state  # type: ignore[union-attr]
 
     def close(self) -> None:
         """Shut down the GPIO backend."""

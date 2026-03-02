@@ -58,6 +58,7 @@ class InputState:
     burner: int = field(default=0)  # 0-100
     drum: int = field(default=50)  # 0-100
     air: int = field(default=50)  # 0-100
+    scroll: int = field(default=100)  # 0-100 (100 = live view)
 
 
 class InputBackend(Protocol):
