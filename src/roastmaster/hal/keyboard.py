@@ -37,6 +37,7 @@ _KEY_TO_EVENT: dict[int, InputEvent] = {
     pygame.K_F12: InputEvent.HELP_TOGGLE,
     pygame.K_u: InputEvent.UNIT_TOGGLE,
     pygame.K_r: InputEvent.ROAST_RESET,
+    pygame.K_F11: InputEvent.MUSIC_TOGGLE,
 }
 
 # Events that modify state and the field/direction they affect.

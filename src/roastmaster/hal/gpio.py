@@ -86,8 +86,10 @@ _COOL_PIN = 6
 _MODE_PIN = 13
 _UNIT_PIN = 19   # C/F display toggle (GPIO19, Pi physical pin 35)
 _DEBUG_PIN = 24  # Debug/info panel toggle (GPIO24, Pi physical pin 18)
+_MUSIC_PIN = 4   # Background music toggle (GPIO4, Pi physical pin 7)
 _TOGGLE_PINS = (
-    _POWER_PIN, _HEAT_PIN, _COOL_PIN, _MODE_PIN, _UNIT_PIN, _DEBUG_PIN,
+    _POWER_PIN, _HEAT_PIN, _COOL_PIN, _MODE_PIN,
+    _UNIT_PIN, _DEBUG_PIN, _MUSIC_PIN,
 )
 
 # Pins subject to startup arm behaviour (NOT power — it should respond immediately)
@@ -99,6 +101,7 @@ _TOGGLE_EVENT_MAP: dict[int, InputEvent] = {
     _MODE_PIN: InputEvent.MODE_TOGGLE,
     _UNIT_PIN: InputEvent.UNIT_TOGGLE,
     _DEBUG_PIN: InputEvent.HELP_TOGGLE,
+    _MUSIC_PIN: InputEvent.MUSIC_TOGGLE,
 }
 
 # Momentary buttons (active-LOW, pull-up, press = falling edge)

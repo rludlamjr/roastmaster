@@ -40,6 +40,7 @@ class TestInputEvent:
         "HELP_TOGGLE",
         "UNIT_TOGGLE",
         "ROAST_RESET",
+        "MUSIC_TOGGLE",
     ]
 
     def test_all_members_present(self):

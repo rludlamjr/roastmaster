@@ -623,6 +623,56 @@ def _show_title_screen(
         clock.tick(FPS)
 
 
+def _show_goodbye(
+    screen: pygame.Surface,
+    clock: pygame.time.Clock,
+    sfx: SFX,
+) -> None:
+    """Show 'Goodbye!' centered on screen, fade to black while shutdown sound plays."""
+    from roastmaster.display.fonts import render_text, text_height, text_width
+
+    text = "GOODBYE!"
+    scale = 4
+    tw = text_width(text, scale)
+    th = text_height(scale)
+    tx = (SCREEN_WIDTH - tw) // 2
+    ty = (SCREEN_HEIGHT - th) // 2
+    color = (0, 255, 0)  # bright green CRT
+
+    # Start shutdown sound (non-blocking)
+    sound_playing = sfx.start_shutdown()
+
+    # Render initial frame
+    screen.fill((0, 0, 0))
+    render_text(screen, text, tx, ty, color, scale)
+    pygame.display.flip()
+
+    # Fade out over the duration of the sound (or 2 seconds if no sound)
+    fade_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    fade_overlay.fill((0, 0, 0))
+    alpha = 0
+
+    while True:
+        playing = sound_playing and sfx.shutdown_playing()
+        if not playing and alpha >= 255:
+            break
+
+        # Fade: increase alpha each frame
+        if alpha < 255:
+            alpha = min(alpha + 3, 255)
+            fade_overlay.set_alpha(alpha)
+
+        # Redraw text then overlay the fade
+        screen.fill((0, 0, 0))
+        render_text(screen, text, tx, ty, color, scale)
+        screen.blit(fade_overlay, (0, 0))
+        pygame.display.flip()
+
+        # Drain pygame events to prevent "not responding"
+        pygame.event.pump()
+        clock.tick(FPS)
+
+
 def _get_serial_ports() -> list[tuple[str, str]]:
     """Return a list of (device_path, description) for available serial ports."""
     from serial.tools.list_ports import comports
@@ -889,6 +939,11 @@ def main(argv: list[str] | None = None) -> None:
                     message = f"DISPLAY: {unit_label}"
                     message_expire = session.fsm.elapsed + 2.0
                     continue
+                if event == InputEvent.MUSIC_TOGGLE:
+                    music_state = sfx.toggle_bg_music()
+                    message = "MUSIC ON" if music_state else "MUSIC OFF"
+                    message_expire = session.fsm.elapsed + 2.0
+                    continue
                 if event == InputEvent.ROAST_RESET:
                     session.reset()
                     start_ticks = pygame.time.get_ticks()
@@ -1057,8 +1112,8 @@ def main(argv: list[str] | None = None) -> None:
         except Exception:  # noqa: BLE001
             pass
 
-        # Play shutdown sound and wait for it to finish before killing the mixer
-        sfx.play_and_wait("shutdown.wav")
+        # Goodbye screen with fade-out while shutdown sound plays
+        _show_goodbye(screen, clock, sfx)
 
         pygame.quit()
 

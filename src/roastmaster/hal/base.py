@@ -49,6 +49,7 @@ class InputEvent(Enum):
     HELP_TOGGLE = auto()
     UNIT_TOGGLE = auto()
     ROAST_RESET = auto()
+    MUSIC_TOGGLE = auto()  # Toggle background music
 
 
 @dataclass
