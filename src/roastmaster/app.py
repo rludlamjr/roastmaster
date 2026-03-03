@@ -834,6 +834,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # Clean shutdown on Ctrl-C
     running = True
+    shutdown_after = False  # set True when POWER toggle triggers QUIT on GPIO hardware
 
     def _sigint_handler(signum: int, frame: object) -> None:
         nonlocal running
@@ -851,6 +852,7 @@ def main(argv: list[str] | None = None) -> None:
             # 2. Process input events
             for event in hal.poll_events():
                 if event == InputEvent.QUIT:
+                    shutdown_after = gpio_backend is not None
                     running = False
                     break
                 if event == InputEvent.HELP_TOGGLE:
@@ -1031,6 +1033,10 @@ def main(argv: list[str] | None = None) -> None:
         except Exception:  # noqa: BLE001
             pass
         pygame.quit()
+
+        if shutdown_after:
+            logger.info("POWER toggle OFF — issuing system poweroff")
+            os.system("sudo poweroff")
 
     sys.exit()
 
