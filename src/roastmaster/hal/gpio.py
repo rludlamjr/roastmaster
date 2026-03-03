@@ -84,7 +84,11 @@ _POWER_PIN = 23
 _HEAT_PIN = 5
 _COOL_PIN = 6
 _MODE_PIN = 13
-_TOGGLE_PINS = (_POWER_PIN, _HEAT_PIN, _COOL_PIN, _MODE_PIN)
+_UNIT_PIN = 19   # C/F display toggle (GPIO19, Pi physical pin 35)
+_DEBUG_PIN = 24  # Debug/info panel toggle (GPIO24, Pi physical pin 18)
+_TOGGLE_PINS = (
+    _POWER_PIN, _HEAT_PIN, _COOL_PIN, _MODE_PIN, _UNIT_PIN, _DEBUG_PIN,
+)
 
 # Pins subject to startup arm behaviour (NOT power — it should respond immediately)
 _ARMABLE_PINS = frozenset((_HEAT_PIN, _COOL_PIN, _MODE_PIN))
@@ -93,6 +97,8 @@ _TOGGLE_EVENT_MAP: dict[int, InputEvent] = {
     _HEAT_PIN: InputEvent.HEAT_TOGGLE,
     _COOL_PIN: InputEvent.COOL_TOGGLE,
     _MODE_PIN: InputEvent.MODE_TOGGLE,
+    _UNIT_PIN: InputEvent.UNIT_TOGGLE,
+    _DEBUG_PIN: InputEvent.HELP_TOGGLE,
 }
 
 # Momentary buttons (active-LOW, pull-up, press = falling edge)
@@ -352,9 +358,9 @@ class GPIOInput:
                             logger.info("Toggle GPIO%d armed", pin)
                         continue  # suppress event while unarmed
 
-                    # Armed — emit the toggle event
-                    if pin in _TOGGLE_EVENT_MAP:
-                        events.append(_TOGGLE_EVENT_MAP[pin])
+                # Emit the toggle event (armable pins reach here only when armed)
+                if pin in _TOGGLE_EVENT_MAP:
+                    events.append(_TOGGLE_EVENT_MAP[pin])
         except Exception:
             logger.exception("Error reading toggle events")
 

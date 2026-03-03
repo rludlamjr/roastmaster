@@ -29,6 +29,7 @@ from roastmaster.engine.roast import RoastPhase, RoastStateMachine
 from roastmaster.engine.ror import RoRCalculator
 from roastmaster.hal.base import InputEvent
 from roastmaster.hal.keyboard import KeyboardInput
+from roastmaster.sfx import SFX
 from roastmaster.profiles.manager import ProfileManager
 from roastmaster.profiles.schema import ProfileEvent, ProfileSample, RoastProfile
 from roastmaster.serial.protocol import RoasterDevice, RoasterReading
@@ -586,6 +587,7 @@ def _show_title_screen(
     screen: pygame.Surface,
     clock: pygame.time.Clock,
     gpio_backend: object | None = None,
+    sfx: SFX | None = None,
 ) -> None:
     """Display the title screen image and wait for any key or button press."""
     # Resolve asset path relative to the package (src/roastmaster/../../assets)
@@ -598,6 +600,9 @@ def _show_title_screen(
 
     screen.blit(title_img, (0, 0))
     pygame.display.flip()
+
+    if sfx:
+        sfx.play_startup()
 
     waiting = True
     while waiting:
@@ -799,8 +804,10 @@ def main(argv: list[str] | None = None) -> None:
             logger.warning("GPIO not available — keyboard only")
             gpio_backend = None
 
+    sfx = SFX()
+
     if not args.no_title:
-        _show_title_screen(screen, clock, gpio_backend)
+        _show_title_screen(screen, clock, gpio_backend, sfx)
 
     renderer = Renderer(surface=screen, window_seconds=600.0)
     hal = KeyboardInput()
@@ -867,6 +874,7 @@ def main(argv: list[str] | None = None) -> None:
 
             # 2. Process input events
             for event in hal.poll_events():
+                sfx.play_event(event)
                 if event == InputEvent.QUIT:
                     shutdown_after = gpio_backend is not None
                     running = False
@@ -1048,6 +1056,10 @@ def main(argv: list[str] | None = None) -> None:
             device.disconnect()
         except Exception:  # noqa: BLE001
             pass
+
+        # Play shutdown sound and wait for it to finish before killing the mixer
+        sfx.play_and_wait("shutdown.wav")
+
         pygame.quit()
 
         if shutdown_after:

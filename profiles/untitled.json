@@ -1,0 +1,331 @@
+{
+  "name": "",
+  "coffee": "",
+  "weight_g": 0.0,
+  "notes": "",
+  "roast_date": "2026-03-03 11:22",
+  "samples": [
+    {
+      "elapsed": 0.0,
+      "bt": 70.5,
+      "et": 69.8,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 1.0,
+      "bt": 70.3,
+      "et": 70.4,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 2.0,
+      "bt": 70.4,
+      "et": 70.8,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 3.0,
+      "bt": 69.5,
+      "et": 70.8,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 4.0,
+      "bt": 69.8,
+      "et": 70.5,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 5.0,
+      "bt": 70.2,
+      "et": 69.5,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 6.0,
+      "bt": 69.6,
+      "et": 69.6,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 7.0,
+      "bt": 70.1,
+      "et": 69.5,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 8.0,
+      "bt": 69.6,
+      "et": 69.6,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 9.0,
+      "bt": 69.9,
+      "et": 70.1,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 10.0,
+      "bt": 69.6,
+      "et": 69.5,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 11.0,
+      "bt": 70.3,
+      "et": 70.0,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 12.0,
+      "bt": 69.8,
+      "et": 70.6,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 13.0,
+      "bt": 69.7,
+      "et": 69.4,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 14.0,
+      "bt": 70.2,
+      "et": 69.9,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 15.0,
+      "bt": 70.0,
+      "et": 69.5,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 16.0,
+      "bt": 70.1,
+      "et": 69.8,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 17.0,
+      "bt": 70.4,
+      "et": 70.2,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 18.0,
+      "bt": 70.4,
+      "et": 70.3,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 19.0,
+      "bt": 70.2,
+      "et": 71.6,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 20.0,
+      "bt": 69.9,
+      "et": 69.7,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 21.0,
+      "bt": 69.8,
+      "et": 70.2,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 22.0,
+      "bt": 70.2,
+      "et": 70.5,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 23.0,
+      "bt": 70.0,
+      "et": 70.1,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 24.0,
+      "bt": 70.4,
+      "et": 69.2,
+      "ror": null,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 25.0,
+      "bt": 70.2,
+      "et": 70.3,
+      "ror": -0.1,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 26.0,
+      "bt": 70.1,
+      "et": 69.9,
+      "ror": 0.4,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 27.0,
+      "bt": 70.2,
+      "et": 70.4,
+      "ror": 0.8,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 28.0,
+      "bt": 70.1,
+      "et": 69.6,
+      "ror": 1.1,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 29.0,
+      "bt": 69.9,
+      "et": 69.9,
+      "ror": 0.8,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 30.0,
+      "bt": 70.0,
+      "et": 70.5,
+      "ror": 0.8,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 31.0,
+      "bt": 70.1,
+      "et": 70.2,
+      "ror": 0.6,
+      "burner": 0.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 32.0,
+      "bt": 69.6,
+      "et": 69.9,
+      "ror": 0.3,
+      "burner": 10.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 33.0,
+      "bt": 69.4,
+      "et": 69.7,
+      "ror": 0.1,
+      "burner": 10.0,
+      "drum": 50.0,
+      "air": 50.0
+    },
+    {
+      "elapsed": 34.0,
+      "bt": 70.0,
+      "et": 70.4,
+      "ror": -0.2,
+      "burner": 10.0,
+      "drum": 50.0,
+      "air": 50.0
+    }
+  ],
+  "events": [
+    {
+      "event_type": "CHARGE",
+      "elapsed": 3.0,
+      "temperature": 70.4
+    }
+  ]
+}
