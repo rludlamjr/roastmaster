@@ -582,7 +582,11 @@ def _build_render_data(
 # ---------------------------------------------------------------------------
 
 
-def _show_title_screen(screen: pygame.Surface, clock: pygame.time.Clock) -> None:
+def _show_title_screen(
+    screen: pygame.Surface,
+    clock: pygame.time.Clock,
+    gpio_backend: object | None = None,
+) -> None:
     """Display the title screen image and wait for any key or button press."""
     # Resolve asset path relative to the package (src/roastmaster/../../assets)
     asset_path = Path(__file__).resolve().parent.parent.parent / "assets" / "ARS-TITLE.png"
@@ -604,6 +608,13 @@ def _show_title_screen(screen: pygame.Surface, clock: pygame.time.Clock) -> None
             if event.type in (pygame.KEYDOWN, pygame.JOYBUTTONDOWN, pygame.MOUSEBUTTONDOWN):
                 waiting = False
                 break
+
+        # Also check GPIO buttons/encoder — any event dismisses the title
+        if waiting and gpio_backend is not None:
+            gpio_events = gpio_backend.poll_events()  # type: ignore[union-attr]
+            if gpio_events:
+                waiting = False
+
         clock.tick(FPS)
 
 
@@ -775,12 +786,6 @@ def main(argv: list[str] | None = None) -> None:
     pygame.display.set_caption(WINDOW_TITLE)
     clock = pygame.time.Clock()
 
-    if not args.no_title:
-        _show_title_screen(screen, clock)
-
-    renderer = Renderer(surface=screen, window_seconds=600.0)
-    hal = KeyboardInput()
-
     # --- GPIO hybrid wiring (--gpio flag) ---
     gpio_backend = None
     if args.gpio:
@@ -789,11 +794,22 @@ def main(argv: list[str] | None = None) -> None:
 
         gpio_backend = GPIOInput()
         if gpio_backend.available:
-            hal = HybridInput(keyboard=hal, gpio=gpio_backend)  # type: ignore[assignment]
-            logger.info("Hybrid input: keyboard + GPIO")
+            logger.info("GPIO backend initialized for hybrid input")
         else:
             logger.warning("GPIO not available — keyboard only")
             gpio_backend = None
+
+    if not args.no_title:
+        _show_title_screen(screen, clock, gpio_backend)
+
+    renderer = Renderer(surface=screen, window_seconds=600.0)
+    hal = KeyboardInput()
+
+    if gpio_backend is not None:
+        from roastmaster.hal.hybrid import HybridInput
+
+        hal = HybridInput(keyboard=hal, gpio=gpio_backend)  # type: ignore[assignment]
+        logger.info("Hybrid input: keyboard + GPIO")
 
     device: RoasterDevice
     device_label = "SIM"
