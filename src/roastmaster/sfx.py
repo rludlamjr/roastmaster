@@ -54,6 +54,7 @@ class SFX:
 
         try:
             if not pygame.mixer.get_init():
+                pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=8192)
                 pygame.mixer.init()
             self._available = True
         except pygame.error:
