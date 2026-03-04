@@ -138,6 +138,7 @@ _ADC_DEADBAND = 10  # ignore ADC jitter smaller than this (out of 1023)
 _CH_BURNER = 0
 _CH_AIR = 1
 _CH_DRUM = 2
+_CH_SCROLL = 3
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +180,7 @@ class GPIOInput:
         self._spi: object | None = None
         self._state = InputState()
         self._last_pot_read = 0.0
-        self._last_adc = [0, 0, 0]  # raw ADC values for deadband
+        self._last_adc = [0, 0, 0, 1023]  # raw ADC values for deadband (scroll defaults high = live)
 
         # Arm state for toggle switches (safety: prevent surprise heat on boot)
         self._armed: dict[int, bool] = {}
@@ -420,16 +421,18 @@ class GPIOInput:
                 self._spi_read_channel(self._spi, _CH_BURNER),
                 self._spi_read_channel(self._spi, _CH_AIR),
                 self._spi_read_channel(self._spi, _CH_DRUM),
+                self._spi_read_channel(self._spi, _CH_SCROLL),
             ]
 
             # Apply deadband: only update if change exceeds threshold
-            for i in range(3):
+            for i in range(4):
                 if abs(raw[i] - self._last_adc[i]) >= _ADC_DEADBAND:
                     self._last_adc[i] = raw[i]
 
             self._state.burner = _adc_to_percent(self._last_adc[0])
             self._state.air = _adc_to_percent(self._last_adc[1])
             self._state.drum = _adc_to_percent(self._last_adc[2])
+            self._state.scroll = _adc_to_percent(self._last_adc[3])
         except Exception:
             logger.exception("Error reading MCP3008")
 
