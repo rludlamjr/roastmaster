@@ -836,6 +836,7 @@ def main(argv: list[str] | None = None) -> None:
     if not serial_port and not args.sim:
         serial_port = _select_device()
 
+    pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=8192)
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption(WINDOW_TITLE)
