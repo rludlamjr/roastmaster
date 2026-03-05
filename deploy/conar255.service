@@ -13,7 +13,7 @@ Type=simple
 # start-x.local.sh drops to the app user via sudo
 User=root
 Environment=HOME=__HOME__
-Environment=SDL_AUDIODRIVER=dummy
+Environment=SDL_AUDIODRIVER=alsa
 
 ExecStart=/usr/bin/xinit __APP_DIR__/deploy/start-x.local.sh -- :0 vt1 -nocursor -quiet
 WorkingDirectory=__APP_DIR__
