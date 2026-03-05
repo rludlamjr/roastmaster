@@ -73,7 +73,8 @@ def _detect_chip() -> str:
 
 
 _CHIP = _detect_chip()
-_DEBOUNCE_US = 50_000  # 50 ms kernel debounce
+_DEBOUNCE_US = 50_000  # 50 ms kernel debounce (buttons/toggles)
+_ENC_DEBOUNCE_US = 5_000  # 5 ms for rotary encoder (needs fast response)
 
 # ---------------------------------------------------------------------------
 # Pin assignments — matches stripboard-interface-board-inputs-only.md
@@ -282,9 +283,9 @@ class GPIOInput:
             config={
                 _ENC_CLK_PIN: gpiod.LineSettings(
                     direction=Direction.INPUT,
-                    edge_detection=Edge.FALLING,
+                    edge_detection=Edge.BOTH,
                     bias=Bias.PULL_UP,
-                    debounce_period=timedelta(microseconds=_DEBOUNCE_US),
+                    debounce_period=timedelta(microseconds=_ENC_DEBOUNCE_US),
                 ),
                 _ENC_DT_PIN: gpiod.LineSettings(
                     direction=Direction.INPUT,
@@ -385,7 +386,9 @@ class GPIOInput:
     def _poll_encoder(self, events: list[InputEvent]) -> None:
         """Read rotary encoder events.
 
-        CLK falling edge + DT level → rotation direction (quadrature).
+        CLK edge (both rising and falling) + DT level → rotation direction.
+        On CLK falling edge: DT HIGH = CW, DT LOW = CCW.
+        On CLK rising edge:  DT LOW = CW, DT HIGH = CCW (inverted).
         SW falling edge → profile load / confirm.
         """
         if self._encoder_request is None:
@@ -397,12 +400,10 @@ class GPIOInput:
                 pin = edge.line_offset
 
                 if pin == _ENC_CLK_PIN:
-                    # Quadrature: on CLK falling edge, check DT level.
-                    # DT has active_low=False (default):
-                    #   ACTIVE  = physically HIGH = DT hasn't fallen yet = CW
-                    #   INACTIVE = physically LOW  = DT fell first       = CCW
                     dt_val = self._encoder_request.get_value(_ENC_DT_PIN)
-                    if dt_val == Value.INACTIVE:
+                    clk_val = self._encoder_request.get_value(_ENC_CLK_PIN)
+                    # XOR: when CLK and DT match → one direction, differ → other
+                    if (clk_val == Value.ACTIVE) == (dt_val == Value.ACTIVE):
                         events.append(InputEvent.NAV_UP)
                     else:
                         events.append(InputEvent.NAV_DOWN)

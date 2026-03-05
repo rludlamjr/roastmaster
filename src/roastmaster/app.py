@@ -735,8 +735,8 @@ def _select_device_gui(
         options.append((path, label.upper()))
 
     cursor = 0
-    row_height = 18
-    max_visible = 14
+    row_height = 40
+    max_visible = 7
 
     while True:
         # --- Draw ---
@@ -744,21 +744,21 @@ def _select_device_gui(
 
         # Title
         title = "SELECT DEVICE"
-        tw = text_width(title, scale=2)
+        tw = text_width(title, scale=4)
         tx = (SCREEN_WIDTH - tw) // 2
-        ty = 30
-        render_text(screen, title, tx, ty, theme.TEXT, scale=2)
+        ty = 20
+        render_text(screen, title, tx, ty, theme.TEXT, scale=4)
 
         # Divider
-        div_y = ty + text_height(2) + 8
-        pygame.draw.line(screen, theme.GREEN_DIM, (40, div_y), (SCREEN_WIDTH - 40, div_y))
+        div_y = ty + text_height(4) + 10
+        pygame.draw.line(screen, theme.GREEN_DIM, (20, div_y), (SCREEN_WIDTH - 20, div_y))
 
         # Instructions
-        hint = "ROTATE TO SELECT / PUSH TO CONFIRM"
-        hw = text_width(hint, scale=1)
-        render_text(screen, hint, (SCREEN_WIDTH - hw) // 2, div_y + 6, theme.TEXT_DIM, scale=1)
+        hint = "ROTATE / PUSH TO SELECT"
+        hw = text_width(hint, scale=2)
+        render_text(screen, hint, (SCREEN_WIDTH - hw) // 2, div_y + 8, theme.TEXT_DIM, scale=2)
 
-        list_y = div_y + 24
+        list_y = div_y + 32
 
         # Scrolling
         scroll_offset = 0
@@ -771,7 +771,7 @@ def _select_device_gui(
             _path, label = options[i]
 
             if i == cursor:
-                bar_rect = (40, row_y, SCREEN_WIDTH - 80, row_height)
+                bar_rect = (20, row_y, SCREEN_WIDTH - 40, row_height)
                 pygame.draw.rect(screen, theme.GREEN_DIM, bar_rect)
                 prefix = "> "
                 color = theme.TEXT
@@ -779,14 +779,14 @@ def _select_device_gui(
                 prefix = "  "
                 color = theme.TEXT_DIM
 
-            render_text(screen, f"{prefix}{label}", 48, row_y + 4, color, scale=1)
+            render_text(screen, f"{prefix}{label}", 28, row_y + 10, color, scale=2)
 
         # Scroll indicators
         if scroll_offset > 0:
-            render_text(screen, "^", SCREEN_WIDTH - 56, list_y, theme.TEXT_DIM, scale=1)
+            render_text(screen, "^", SCREEN_WIDTH - 40, list_y, theme.TEXT_DIM, scale=2)
         if end < len(options):
             bot_y = list_y + (max_visible - 1) * row_height
-            render_text(screen, "v", SCREEN_WIDTH - 56, bot_y, theme.TEXT_DIM, scale=1)
+            render_text(screen, "v", SCREEN_WIDTH - 40, bot_y, theme.TEXT_DIM, scale=2)
 
         pygame.display.flip()
 
