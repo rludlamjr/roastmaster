@@ -207,14 +207,17 @@ class GraphWidget:
         """Remove all event markers."""
         self._event_markers = []
 
-    def draw(self, surface: pygame.Surface, elapsed: float) -> None:
+    def draw(self, surface: pygame.Surface, elapsed: float, scroll: float = 100.0) -> None:
         """Render the widget onto *surface*.
 
         Parameters
         ----------
         elapsed:
             Current roast elapsed time in seconds (used to anchor the X axis).
+        scroll:
+            Scroll position 0–100 (100 = live, 0 = beginning of roast).
         """
+        self._scroll = scroll
         r = self.rect
         p = self._plot
 
@@ -249,11 +252,24 @@ class GraphWidget:
         When a charge time is set, the window anchors so that t_start
         is at minimum the charge time — preheat data scrolls off the
         left edge immediately.
+
+        The scroll value (0–100) controls the view position when the
+        roast is longer than window_seconds.  100 = live (tracking
+        elapsed), 0 = back to the start.
         """
         if self._charge_time is not None:
-            t_end = max(self._charge_time + self.window_seconds, elapsed)
+            live_end = max(self._charge_time + self.window_seconds, elapsed)
         else:
-            t_end = max(self.window_seconds, elapsed)
+            live_end = max(self.window_seconds, elapsed)
+
+        # Apply scroll: interpolate between earliest possible view and live
+        scroll = getattr(self, "_scroll", 100.0)
+        earliest_end = self.window_seconds  # view starts at t=0
+        if scroll >= 100.0 or live_end <= self.window_seconds:
+            t_end = live_end
+        else:
+            t_end = earliest_end + (live_end - earliest_end) * (scroll / 100.0)
+
         t_start = t_end - self.window_seconds
         return t_start, t_end
 

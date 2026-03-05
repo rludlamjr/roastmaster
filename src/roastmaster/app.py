@@ -572,6 +572,7 @@ def _build_render_data(
         "burner": float(hal.state.burner),
         "drum": float(hal.state.drum),
         "air": float(hal.state.air),
+        "scroll": float(hal.state.scroll),
         "heat_enabled": session.heat_enabled,
         "cooling_enabled": session.cooling_enabled,
         "message": message,
@@ -684,7 +685,7 @@ def _get_serial_ports() -> list[tuple[str, str]]:
 
 
 def _select_device() -> str | None:
-    """Interactive device selector. Returns a serial port path, or None for simulator."""
+    """Interactive device selector (terminal). Returns a serial port path, or None for simulator."""
     ports = _get_serial_ports()
 
     print("\n  CONAR 255 A.R.S. — Device Selection\n")  # noqa: T201
@@ -710,6 +711,111 @@ def _select_device() -> str | None:
             return None
         if 1 <= idx <= len(ports):
             return ports[idx - 1][0]
+
+
+def _select_device_gui(
+    screen: pygame.Surface,
+    clock: pygame.time.Clock,
+    gpio_backend: object | None = None,
+) -> str | None:
+    """On-screen device selector for headless operation.
+
+    Uses rotary encoder (NAV_UP/NAV_DOWN to move, encoder push to confirm)
+    or keyboard (UP/DOWN arrows, ENTER to confirm).
+
+    Returns a serial port path, or None for simulator.
+    """
+    from roastmaster.display import theme
+    from roastmaster.display.fonts import render_text, text_height, text_width
+
+    ports = _get_serial_ports()
+    options: list[tuple[str | None, str]] = [(None, "SIMULATOR")]
+    for path, desc in ports:
+        label = f"{desc}  ({path})" if desc != path else path
+        options.append((path, label.upper()))
+
+    cursor = 0
+    row_height = 18
+    max_visible = 14
+
+    while True:
+        # --- Draw ---
+        screen.fill(theme.BG)
+
+        # Title
+        title = "SELECT DEVICE"
+        tw = text_width(title, scale=2)
+        tx = (SCREEN_WIDTH - tw) // 2
+        ty = 30
+        render_text(screen, title, tx, ty, theme.TEXT, scale=2)
+
+        # Divider
+        div_y = ty + text_height(2) + 8
+        pygame.draw.line(screen, theme.GREEN_DIM, (40, div_y), (SCREEN_WIDTH - 40, div_y))
+
+        # Instructions
+        hint = "ROTATE TO SELECT / PUSH TO CONFIRM"
+        hw = text_width(hint, scale=1)
+        render_text(screen, hint, (SCREEN_WIDTH - hw) // 2, div_y + 6, theme.TEXT_DIM, scale=1)
+
+        list_y = div_y + 24
+
+        # Scrolling
+        scroll_offset = 0
+        if cursor >= max_visible:
+            scroll_offset = cursor - max_visible + 1
+
+        end = min(scroll_offset + max_visible, len(options))
+        for i in range(scroll_offset, end):
+            row_y = list_y + (i - scroll_offset) * row_height
+            _path, label = options[i]
+
+            if i == cursor:
+                bar_rect = (40, row_y, SCREEN_WIDTH - 80, row_height)
+                pygame.draw.rect(screen, theme.GREEN_DIM, bar_rect)
+                prefix = "> "
+                color = theme.TEXT
+            else:
+                prefix = "  "
+                color = theme.TEXT_DIM
+
+            render_text(screen, f"{prefix}{label}", 48, row_y + 4, color, scale=1)
+
+        # Scroll indicators
+        if scroll_offset > 0:
+            render_text(screen, "^", SCREEN_WIDTH - 56, list_y, theme.TEXT_DIM, scale=1)
+        if end < len(options):
+            bot_y = list_y + (max_visible - 1) * row_height
+            render_text(screen, "v", SCREEN_WIDTH - 56, bot_y, theme.TEXT_DIM, scale=1)
+
+        pygame.display.flip()
+
+        # --- Input ---
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_UP, pygame.K_k):
+                    cursor = max(0, cursor - 1)
+                elif event.key in (pygame.K_DOWN, pygame.K_j):
+                    cursor = min(len(options) - 1, cursor + 1)
+                elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    return options[cursor][0]
+                elif event.key in (pygame.K_q, pygame.K_ESCAPE):
+                    return None  # default to simulator
+
+        # GPIO encoder input
+        if gpio_backend is not None:
+            for gpio_event in gpio_backend.poll_events():  # type: ignore[union-attr]
+                if gpio_event == InputEvent.NAV_UP:
+                    cursor = max(0, cursor - 1)
+                elif gpio_event == InputEvent.NAV_DOWN:
+                    cursor = min(len(options) - 1, cursor + 1)
+                elif gpio_event in (InputEvent.PROFILE_LOAD, InputEvent.CONFIRM):
+                    return options[cursor][0]
+
+        clock.tick(FPS)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -831,11 +937,6 @@ def main(argv: list[str] | None = None) -> None:
     if log_path is not None:
         logger.info("Logging to %s", log_path)
 
-    # Determine which device to use
-    serial_port: str | None = args.device
-    if not serial_port and not args.sim:
-        serial_port = _select_device()
-
     pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=8192)
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -859,6 +960,14 @@ def main(argv: list[str] | None = None) -> None:
 
     if not args.no_title:
         _show_title_screen(screen, clock, gpio_backend, sfx)
+
+    # Determine which device to use
+    serial_port: str | None = args.device
+    if not serial_port and not args.sim:
+        if gpio_backend is not None:
+            serial_port = _select_device_gui(screen, clock, gpio_backend)
+        else:
+            serial_port = _select_device()
 
     renderer = Renderer(surface=screen, window_seconds=600.0)
     hal = KeyboardInput()

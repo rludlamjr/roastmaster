@@ -233,6 +233,7 @@ class Renderer:
         drum = float(data.get("drum", 0.0))
         air = float(data.get("air", 0.0))
         message = str(data.get("message", ""))
+        scroll = float(data.get("scroll", 100.0))
 
         # Clear
         surface.fill(theme.BG)
@@ -259,7 +260,7 @@ class Renderer:
             self._draw_full_status_screen(surface, [str(x) for x in debug_lines])
         else:
             # Graph
-            self._graph.draw(surface, elapsed)
+            self._graph.draw(surface, elapsed, scroll=scroll)
 
             # Flash message overlay on top of the graph
             if message:
