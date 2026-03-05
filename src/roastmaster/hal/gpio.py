@@ -283,7 +283,7 @@ class GPIOInput:
             config={
                 _ENC_CLK_PIN: gpiod.LineSettings(
                     direction=Direction.INPUT,
-                    edge_detection=Edge.BOTH,
+                    edge_detection=Edge.FALLING,
                     bias=Bias.PULL_UP,
                     debounce_period=timedelta(microseconds=_ENC_DEBOUNCE_US),
                 ),
@@ -400,10 +400,9 @@ class GPIOInput:
                 pin = edge.line_offset
 
                 if pin == _ENC_CLK_PIN:
+                    # On CLK falling edge, check DT level for direction
                     dt_val = self._encoder_request.get_value(_ENC_DT_PIN)
-                    clk_val = self._encoder_request.get_value(_ENC_CLK_PIN)
-                    # XOR: when CLK and DT match → one direction, differ → other
-                    if (clk_val == Value.ACTIVE) == (dt_val == Value.ACTIVE):
+                    if dt_val == Value.INACTIVE:
                         events.append(InputEvent.NAV_UP)
                     else:
                         events.append(InputEvent.NAV_DOWN)
