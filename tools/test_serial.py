@@ -1,49 +1,51 @@
-"""Test serial communication with the Kaleido roaster.
+"""Test serial communication with the Kaleido roaster at 57600 baud.
 
-Tries multiple baud rates, command formats, and also just listens
-for any data the roaster sends on its own.
+Tries different flow control and DTR/RTS settings.
 """
 
 import serial
 import time
 
 PORT = "/dev/ttyUSB0"
+BAUD = 57600
 
-# Different command formats to try
-COMMANDS = [
-    (b"PI\r\n", "PI with CRLF"),
-    (b"PI\r", "PI with CR only"),
-    (b"PI\n", "PI with LF only"),
-    (b"RD\r\n", "RD with CRLF"),
-    (b"RD,A0\r\n", "RD,A0 with CRLF"),
+configs = [
+    {"dsrdtr": False, "rtscts": False, "dtr": None, "rts": None, "desc": "defaults (no flow control)"},
+    {"dsrdtr": False, "rtscts": False, "dtr": True, "rts": True, "desc": "DTR=high, RTS=high"},
+    {"dsrdtr": False, "rtscts": False, "dtr": False, "rts": False, "desc": "DTR=low, RTS=low"},
+    {"dsrdtr": True, "rtscts": False, "dtr": None, "rts": None, "desc": "DSR/DTR flow control"},
+    {"dsrdtr": False, "rtscts": True, "dtr": None, "rts": None, "desc": "RTS/CTS flow control"},
 ]
 
-for baud in [115200, 9600, 19200, 38400, 57600]:
-    print(f"\n=== {baud} baud ===")
+for cfg in configs:
+    desc = cfg.pop("desc")
+    dtr = cfg.pop("dtr")
+    rts = cfg.pop("rts")
+    print(f"\n=== {desc} ===")
     try:
-        ser = serial.Serial(PORT, baud, timeout=2)
-        time.sleep(0.5)
+        ser = serial.Serial(PORT, BAUD, timeout=2, **cfg)
+        if dtr is not None:
+            ser.dtr = dtr
+        if rts is not None:
+            ser.rts = rts
+        time.sleep(1)
         ser.reset_input_buffer()
 
-        # First just listen for 3 seconds (roaster may broadcast)
-        print("  Listening for unsolicited data (3 sec)...")
+        # Listen passively
+        print("  Listening 3 sec...")
         time.sleep(3)
         data = ser.read(ser.in_waiting or 1)
         if data:
-            print(f"  RECEIVED (passive): {data}")
-        else:
-            print(f"  nothing received passively")
+            print(f"  PASSIVE: {data}")
 
-        # Try each command format
-        for cmd, desc in COMMANDS:
-            ser.reset_input_buffer()
-            ser.write(cmd)
-            time.sleep(1)
-            data = ser.read(ser.in_waiting or 1)
-            if data:
-                print(f"  {desc} -> GOT RESPONSE: {data}")
-            else:
-                print(f"  {desc} -> no response")
+        # Send PI command
+        ser.write(b"PI\r\n")
+        time.sleep(1)
+        data = ser.read(ser.in_waiting or 1)
+        if data:
+            print(f"  PI response: {data}")
+        else:
+            print(f"  no response")
 
         ser.close()
         time.sleep(0.5)
@@ -51,7 +53,3 @@ for baud in [115200, 9600, 19200, 38400, 57600]:
         print(f"  error: {e}")
 
 print("\n--- Done ---")
-print("If all tests show no response, check:")
-print("  1. Is the roaster powered on and past its startup screen?")
-print("  2. Try unplugging and replugging the USB cable")
-print("  3. Check: ls -la /dev/ttyUSB* /dev/ttyACM*")
