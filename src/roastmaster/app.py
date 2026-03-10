@@ -175,6 +175,26 @@ def _handle_input(
             except (ConnectionError, OSError, RuntimeError) as exc:
                 logger.warning("PID on error: %s", exc)
 
+            # Set a default preheat setpoint if none is active — the Kaleido
+            # PID won't fire the heater without a target temperature (TS).
+            try:
+                current_ts = None
+                if hasattr(device, "get_state"):
+                    ts_val = device.get_state("TS")  # type: ignore[attr-defined]
+                    if ts_val is not None:
+                        current_ts = float(ts_val)
+                if current_ts is None or current_ts < 1.0:
+                    tu = "F"
+                    if hasattr(device, "get_state"):
+                        tu_val = device.get_state("TU")  # type: ignore[attr-defined]
+                        if isinstance(tu_val, str) and tu_val in {"C", "F"}:
+                            tu = tu_val
+                    target = 200.0 if tu == "C" else 400.0
+                    device.set_setpoint(target)
+                    logger.info("Auto-set preheat setpoint to %.0f%s", target, tu)
+            except (ConnectionError, OSError, RuntimeError) as exc:
+                logger.warning("Setpoint error: %s", exc)
+
             heat_ack = True
             try:
                 device.set_heating_switch(True)
