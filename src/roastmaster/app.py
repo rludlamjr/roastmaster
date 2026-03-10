@@ -920,8 +920,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--baud",
         type=int,
-        default=9600,
-        help="Baud rate for serial connection (default: 9600)",
+        default=57600,
+        help="Baud rate for serial connection (default: 57600)",
     )
     parser.add_argument(
         "--test",

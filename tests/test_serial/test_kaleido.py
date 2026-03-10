@@ -193,7 +193,7 @@ class TestKaleidoDeviceConstruction:
     def test_default_construction(self):
         dev = KaleidoDevice(port="/dev/ttyUSB0")
         assert dev._port == "/dev/ttyUSB0"
-        assert dev._baud_rate == 9600
+        assert dev._baud_rate == 57600
         assert dev._temp_unit == "F"
         assert dev.connected is False
 
