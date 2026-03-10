@@ -196,9 +196,9 @@ def parse_response(message: str) -> tuple[int, dict[str, str | int | float]]:
 # Serial configuration defaults
 # ---------------------------------------------------------------------------
 
-_DEFAULT_BAUD_RATE = 9600
+_DEFAULT_BAUD_RATE = 57600
 _DEFAULT_BYTESIZE = serial.EIGHTBITS
-_DEFAULT_PARITY = serial.PARITY_ODD
+_DEFAULT_PARITY = serial.PARITY_NONE
 _DEFAULT_STOPBITS = serial.STOPBITS_ONE
 _DEFAULT_TIMEOUT = 0.4
 

@@ -1,6 +1,7 @@
-"""Test serial communication with the Kaleido roaster at 57600 baud.
+"""Test serial communication with the Kaleido roaster.
 
-Tries different flow control and DTR/RTS settings.
+Sends commands in the correct Kaleido protocol format: {[TAG]}\n
+Tests 57600 baud (Kaleido default) with 8N1 serial settings.
 """
 
 import serial
@@ -23,7 +24,7 @@ for cfg in configs:
     rts = cfg.pop("rts")
     print(f"\n=== {desc} ===")
     try:
-        ser = serial.Serial(PORT, BAUD, timeout=2, **cfg)
+        ser = serial.Serial(PORT, BAUD, timeout=2, parity=serial.PARITY_NONE, **cfg)
         if dtr is not None:
             ser.dtr = dtr
         if rts is not None:
@@ -38,14 +39,27 @@ for cfg in configs:
         if data:
             print(f"  PASSIVE: {data}")
 
-        # Send PI command
-        ser.write(b"PI\r\n")
+        # Send PI command in Kaleido protocol format
+        cmd = b"{[PI]}\n"
+        print(f"  Sending: {cmd}")
+        ser.write(cmd)
         time.sleep(1)
         data = ser.read(ser.in_waiting or 1)
         if data:
             print(f"  PI response: {data}")
         else:
-            print(f"  no response")
+            print("  no response to PI")
+
+        # Try RD A0 command
+        cmd = b"{[RD A0]}\n"
+        print(f"  Sending: {cmd}")
+        ser.write(cmd)
+        time.sleep(1)
+        data = ser.read(ser.in_waiting or 1)
+        if data:
+            print(f"  RD response: {data}")
+        else:
+            print("  no response to RD")
 
         ser.close()
         time.sleep(0.5)
