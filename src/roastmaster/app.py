@@ -674,6 +674,84 @@ def _show_goodbye(
         clock.tick(FPS)
 
 
+def _show_connection_error(
+    screen: pygame.Surface,
+    clock: pygame.time.Clock,
+    gpio_backend: object | None = None,
+    error_msg: str = "",
+) -> str:
+    """Show connection error screen. Returns 'retry' or 'simulator'."""
+    from roastmaster.display import theme
+    from roastmaster.display.fonts import render_text, text_height, text_width
+
+    options = ["RETRY", "SIMULATOR"]
+    cursor = 0
+
+    while True:
+        screen.fill(theme.BG)
+
+        # Title
+        title = "CONNECTION FAILED"
+        tw = text_width(title, scale=3)
+        render_text(screen, title, (SCREEN_WIDTH - tw) // 2, 40, (255, 80, 80), scale=3)
+
+        # Error message (truncate if too long)
+        err_display = error_msg[:50].upper() if error_msg else "TIMEOUT"
+        ew = text_width(err_display, scale=1)
+        render_text(screen, err_display, (SCREEN_WIDTH - ew) // 2, 90, theme.TEXT_DIM, scale=1)
+
+        # Hint
+        hint = "TURN ROASTER ON, THEN RETRY"
+        hw = text_width(hint, scale=2)
+        render_text(screen, hint, (SCREEN_WIDTH - hw) // 2, 140, theme.TEXT_DIM, scale=2)
+
+        # Options
+        for i, label in enumerate(options):
+            y = 220 + i * 50
+            if i == cursor:
+                bar_rect = (60, y, SCREEN_WIDTH - 120, 40)
+                pygame.draw.rect(screen, theme.GREEN_DIM, bar_rect)
+                prefix = "> "
+                color = theme.TEXT
+            else:
+                prefix = "  "
+                color = theme.TEXT_DIM
+
+            lw = text_width(f"{prefix}{label}", scale=3)
+            render_text(
+                screen, f"{prefix}{label}",
+                (SCREEN_WIDTH - lw) // 2, y + 8, color, scale=3,
+            )
+
+        pygame.display.flip()
+
+        # Input
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_UP, pygame.K_k):
+                    cursor = max(0, cursor - 1)
+                elif event.key in (pygame.K_DOWN, pygame.K_j):
+                    cursor = min(len(options) - 1, cursor + 1)
+                elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    return "retry" if cursor == 0 else "simulator"
+                elif event.key in (pygame.K_q, pygame.K_ESCAPE):
+                    return "simulator"
+
+        if gpio_backend is not None:
+            for gpio_event in gpio_backend.poll_events():  # type: ignore[union-attr]
+                if gpio_event == InputEvent.NAV_UP:
+                    cursor = max(0, cursor - 1)
+                elif gpio_event == InputEvent.NAV_DOWN:
+                    cursor = min(len(options) - 1, cursor + 1)
+                elif gpio_event in (InputEvent.PROFILE_LOAD, InputEvent.CONFIRM):
+                    return "retry" if cursor == 0 else "simulator"
+
+        clock.tick(FPS)
+
+
 def _get_serial_ports() -> list[tuple[str, str]]:
     """Return a list of (device_path, description) for available serial ports."""
     from serial.tools.list_ports import comports
@@ -1001,7 +1079,25 @@ def main(argv: list[str] | None = None) -> None:
     else:
         device = SimulatedRoasterDevice()
         logger.info("Using simulated device")
-    device.connect()
+    connected = False
+    while not connected:
+        try:
+            device.connect()
+            connected = True
+        except (TimeoutError, ConnectionError, OSError) as exc:
+            logger.warning("Connection failed: %s", exc)
+            if serial_port is not None:
+                action = _show_connection_error(
+                    screen, clock, gpio_backend, str(exc),
+                )
+                if action == "retry":
+                    continue
+                # Fall back to simulator
+                device = SimulatedRoasterDevice()
+                device_label = "SIM"
+                serial_port = None
+                device.connect()
+                connected = True
 
     test_mode = args.test and serial_port is not None
 
