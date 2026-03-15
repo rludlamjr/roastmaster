@@ -16,6 +16,7 @@ Reads physical controls matching the production stripboard interface board
     GPIO12 → DROP
     GPIO25 → SAVE
     GPIO20 → RESET
+    GPIO18 → PREHEAT (PID on + setpoint)
 
   Rotary encoder:
     GPIO17 → CLK (quadrature rotation)
@@ -112,7 +113,8 @@ _SCS_PIN = 21
 _DROP_PIN = 12
 _SAVE_PIN = 25
 _RESET_PIN = 20
-_BUTTON_PINS = (_CHARGE_PIN, _FCS_PIN, _SCS_PIN, _DROP_PIN, _SAVE_PIN, _RESET_PIN)
+_PREHEAT_PIN = 18  # Preheat / PID toggle (GPIO18, Pi physical pin 12)
+_BUTTON_PINS = (_CHARGE_PIN, _FCS_PIN, _SCS_PIN, _DROP_PIN, _SAVE_PIN, _RESET_PIN, _PREHEAT_PIN)
 
 _BUTTON_EVENT_MAP: dict[int, InputEvent] = {
     _CHARGE_PIN: InputEvent.CHARGE,
@@ -121,6 +123,7 @@ _BUTTON_EVENT_MAP: dict[int, InputEvent] = {
     _DROP_PIN: InputEvent.DROP,
     _SAVE_PIN: InputEvent.PROFILE_SAVE,
     _RESET_PIN: InputEvent.ROAST_RESET,
+    _PREHEAT_PIN: InputEvent.SETPOINT_PREHEAT,
 }
 
 # Rotary encoder
