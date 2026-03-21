@@ -37,13 +37,17 @@ class RoastStateMachine:
     # ------------------------------------------------------------------
 
     def _transition(self, new_phase: RoastPhase, elapsed: float) -> None:
-        """Validate and perform a phase transition."""
+        """Perform a phase transition.
+
+        Transitions are always allowed — the operator's physical buttons are
+        authoritative.  A warning is logged for non-standard jumps so we can
+        spot unexpected behaviour in logs without blocking the user.
+        """
         allowed = _VALID_TRANSITIONS.get(self.phase, set())
         if new_phase not in allowed:
-            raise ValueError(
-                f"Invalid transition: {self.phase.name} -> {new_phase.name}. "
-                f"Allowed from {self.phase.name}: "
-                f"{[p.name for p in allowed] if allowed else 'none'}"
+            import logging
+            logging.getLogger(__name__).warning(
+                "Non-standard transition: %s -> %s", self.phase.name, new_phase.name,
             )
         self.elapsed = elapsed
         self.phase = new_phase

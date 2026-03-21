@@ -119,14 +119,14 @@ class TestHandleInput:
         assert session.fsm.phase == RoastPhase.CHARGE
         assert msg == "CHARGE MARKED"
 
-    def test_charge_ignored_during_roasting(self, session, device, hal):
+    def test_charge_always_marks(self, session, device, hal):
         dev, _ = device
         session.fsm.start_preheat(0.0)
         session.fsm.charge(1.0)
         session.fsm.begin_roasting(2.0)
         session.fsm.elapsed = 10.0
         msg = _handle_input(InputEvent.CHARGE, session, dev, hal)
-        assert msg is None
+        assert msg == "CHARGE MARKED"
 
     def test_first_crack_during_roasting(self, session, device, hal):
         dev, _ = device
@@ -141,12 +141,13 @@ class TestHandleInput:
         assert fc is not None
         assert fc.temperature == 400.0
 
-    def test_first_crack_ignored_outside_roasting(self, session, device, hal):
+    def test_first_crack_auto_advances_from_idle(self, session, device, hal):
         dev, _ = device
         session.fsm.elapsed = 5.0
         session.bt = 200.0
         msg = _handle_input(InputEvent.FIRST_CRACK, session, dev, hal)
-        assert msg is None
+        assert msg == "FIRST CRACK"
+        assert session.fsm.phase == RoastPhase.ROASTING
 
     def test_drop_transitions_to_cooling(self, session, device, hal):
         dev, _ = device

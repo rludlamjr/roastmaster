@@ -158,6 +158,10 @@ def _handle_input(
     if event == InputEvent.HEAT_TOGGLE:
         desired = not session.heat_enabled
         if desired:
+            # Auto-transition out of IDLE when heat is turned on.
+            if phase == RoastPhase.IDLE:
+                session.fsm.start_preheat(elapsed)
+
             # Heating and cooling are mutually exclusive on the Kaleido.
             # Always attempt to turn cooling off, even if our local session state
             # believes it is already off (device state may persist across runs).
@@ -262,13 +266,14 @@ def _handle_input(
         return "COOL OFF"
 
     if event == InputEvent.CHARGE:
-        if phase == RoastPhase.IDLE:
-            session.fsm.start_preheat(elapsed)
+        # Force FSM to CHARGE regardless of current phase.
+        if phase in (RoastPhase.IDLE, RoastPhase.PREHEAT):
+            if phase == RoastPhase.IDLE:
+                session.fsm.start_preheat(elapsed)
             session.fsm.charge(elapsed)
-        elif phase == RoastPhase.PREHEAT:
-            session.fsm.charge(elapsed)
-        else:
-            return None
+        elif phase != RoastPhase.CHARGE:
+            # Already past CHARGE — just mark the event, don't re-transition.
+            pass
         if session.bt is not None:
             session.events.mark_event(EventType.CHARGE, elapsed, session.bt)
         try:
@@ -278,10 +283,16 @@ def _handle_input(
         return "CHARGE MARKED"
 
     if event == InputEvent.FIRST_CRACK:
-        if phase == RoastPhase.ROASTING and session.bt is not None:
+        if session.bt is not None:
+            # Ensure we're at least in ROASTING phase.
+            if phase in (RoastPhase.IDLE, RoastPhase.PREHEAT):
+                session.fsm.start_preheat(elapsed)
+                session.fsm.charge(elapsed)
+                session.fsm.begin_roasting(elapsed)
+            elif phase == RoastPhase.CHARGE:
+                session.fsm.begin_roasting(elapsed)
             session.events.mark_event(EventType.FIRST_CRACK, elapsed, session.bt)
             try:
-                # Artisan default: FCs -> EV=4
                 device.mark_event(4)
             except (ConnectionError, OSError, RuntimeError) as exc:
                 logger.warning("EV FC error: %s", exc)
@@ -289,10 +300,15 @@ def _handle_input(
         return None
 
     if event == InputEvent.SECOND_CRACK:
-        if phase == RoastPhase.ROASTING and session.bt is not None:
+        if session.bt is not None:
+            if phase in (RoastPhase.IDLE, RoastPhase.PREHEAT):
+                session.fsm.start_preheat(elapsed)
+                session.fsm.charge(elapsed)
+                session.fsm.begin_roasting(elapsed)
+            elif phase == RoastPhase.CHARGE:
+                session.fsm.begin_roasting(elapsed)
             session.events.mark_event(EventType.SECOND_CRACK, elapsed, session.bt)
             try:
-                # Artisan default: SCs -> EV=6
                 device.mark_event(6)
             except (ConnectionError, OSError, RuntimeError) as exc:
                 logger.warning("EV SC error: %s", exc)
@@ -300,31 +316,36 @@ def _handle_input(
         return None
 
     if event == InputEvent.DROP:
-        if phase == RoastPhase.ROASTING:
+        # Ensure we're at least in ROASTING before transitioning to COOLING.
+        if phase in (RoastPhase.IDLE, RoastPhase.PREHEAT):
+            session.fsm.start_preheat(elapsed)
+            session.fsm.charge(elapsed)
+            session.fsm.begin_roasting(elapsed)
+        elif phase == RoastPhase.CHARGE:
+            session.fsm.begin_roasting(elapsed)
+        if phase != RoastPhase.COOLING and phase != RoastPhase.DONE:
             session.fsm.start_cooling(elapsed)
-            if session.bt is not None:
-                session.events.mark_event(EventType.DROP, elapsed, session.bt)
-            try:
-                # Artisan default: DROP -> EV=8
-                device.mark_event(8)
-            except (ConnectionError, OSError, RuntimeError) as exc:
-                logger.warning("EV DROP error: %s", exc)
-            try:
-                device.set_heater(0)
-            except (ConnectionError, OSError, RuntimeError) as exc:
-                logger.warning("Heater off error: %s", exc)
-            session.heat_enabled = False
-            session.cooling_enabled = True
-            try:
-                device.set_heating_switch(False)
-            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
-                logger.warning("Heating switch error: %s", exc)
-            try:
-                device.set_cooling_switch(True)
-            except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
-                logger.warning("Cooling switch error: %s", exc)
-            return "DROP"
-        return None
+        if session.bt is not None:
+            session.events.mark_event(EventType.DROP, elapsed, session.bt)
+        try:
+            device.mark_event(8)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("EV DROP error: %s", exc)
+        try:
+            device.set_heater(0)
+        except (ConnectionError, OSError, RuntimeError) as exc:
+            logger.warning("Heater off error: %s", exc)
+        session.heat_enabled = False
+        session.cooling_enabled = True
+        try:
+            device.set_heating_switch(False)
+        except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+            logger.warning("Heating switch error: %s", exc)
+        try:
+            device.set_cooling_switch(True)
+        except (ConnectionError, OSError, RuntimeError, TimeoutError) as exc:
+            logger.warning("Cooling switch error: %s", exc)
+        return "DROP"
 
     if event == InputEvent.MODE_TOGGLE:
         session.auto_mode = not session.auto_mode

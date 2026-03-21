@@ -78,69 +78,78 @@ def test_cooling_to_done():
 
 
 # ---------------------------------------------------------------------------
-# Invalid transitions raise ValueError
+# Non-standard transitions log a warning but still proceed
 # ---------------------------------------------------------------------------
 
 
-def test_idle_to_charge_raises():
+def test_idle_to_charge_warns(caplog):
     sm = RoastStateMachine()
-    with pytest.raises(ValueError):
-        sm.charge(10.0)
+    sm.charge(10.0)
+    assert sm.phase == RoastPhase.CHARGE
+    assert "Non-standard transition" in caplog.text
 
 
-def test_idle_to_cooling_raises():
+def test_idle_to_cooling_warns(caplog):
     sm = RoastStateMachine()
-    with pytest.raises(ValueError):
-        sm.start_cooling(10.0)
+    sm.start_cooling(10.0)
+    assert sm.phase == RoastPhase.COOLING
+    assert "Non-standard transition" in caplog.text
 
 
-def test_idle_to_done_raises():
+def test_idle_to_done_warns(caplog):
     sm = RoastStateMachine()
-    with pytest.raises(ValueError):
-        sm.finish(10.0)
+    sm.finish(10.0)
+    assert sm.phase == RoastPhase.DONE
+    assert "Non-standard transition" in caplog.text
 
 
-def test_idle_to_roasting_raises():
+def test_idle_to_roasting_warns(caplog):
     sm = RoastStateMachine()
-    with pytest.raises(ValueError):
-        sm.begin_roasting(10.0)
+    sm.begin_roasting(10.0)
+    assert sm.phase == RoastPhase.ROASTING
+    assert "Non-standard transition" in caplog.text
 
 
-def test_preheat_to_roasting_raises():
+def test_preheat_to_roasting_warns(caplog):
     sm = RoastStateMachine()
     sm.start_preheat(5.0)
-    with pytest.raises(ValueError):
-        sm.begin_roasting(10.0)
+    sm.begin_roasting(10.0)
+    assert sm.phase == RoastPhase.ROASTING
+    assert "Non-standard transition" in caplog.text
 
 
-def test_charge_to_cooling_raises():
+def test_charge_to_cooling_warns(caplog):
     sm = RoastStateMachine()
     sm.start_preheat(5.0)
     sm.charge(30.0)
-    with pytest.raises(ValueError):
-        sm.start_cooling(50.0)
+    sm.start_cooling(50.0)
+    assert sm.phase == RoastPhase.COOLING
+    assert "Non-standard transition" in caplog.text
 
 
-def test_roasting_to_done_raises():
+def test_roasting_to_done_warns(caplog):
     sm = RoastStateMachine()
     sm.start_preheat(5.0)
     sm.charge(30.0)
     sm.begin_roasting(90.0)
-    with pytest.raises(ValueError):
-        sm.finish(500.0)
+    sm.finish(500.0)
+    assert sm.phase == RoastPhase.DONE
+    assert "Non-standard transition" in caplog.text
 
 
-def test_done_to_preheat_raises():
+def test_done_to_preheat_warns(caplog):
     sm = make_full_roast()
-    with pytest.raises(ValueError):
-        sm.start_preheat(800.0)
+    sm.start_preheat(800.0)
+    assert sm.phase == RoastPhase.PREHEAT
+    assert "Non-standard transition" in caplog.text
 
 
-def test_cannot_start_preheat_twice():
+def test_preheat_twice_warns(caplog):
     sm = RoastStateMachine()
     sm.start_preheat(5.0)
-    with pytest.raises(ValueError):
-        sm.start_preheat(10.0)
+    sm.start_preheat(10.0)
+    assert sm.phase == RoastPhase.PREHEAT
+    assert "Non-standard transition" in caplog.text
 
 
 # ---------------------------------------------------------------------------
