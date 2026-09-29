@@ -1251,6 +1251,44 @@ def main(argv: list[str] | None = None) -> None:
     if log_path is not None:
         logger.info("Logging to %s", log_path)
 
+    # Roast storage, coffee library, email and the web page come up first, so
+    # the page is reachable (e.g. to add a coffee) while still at the title screen.
+    profile_mgr = ProfileManager()
+    coffee_lib = CoffeeLibrary()
+    live = LiveState()
+
+    from roastmaster.export.mailer import EmailConfig, send_roast, send_roast_async
+
+    email_cfg = EmailConfig.load(Path(args.email_config) if args.email_config else None)
+    logger.info("Email reports: %s", f"to {email_cfg.to}" if email_cfg else "not configured")
+    # Status messages from background threads (email results) for the CRT
+    ui_messages: queue.SimpleQueue[str] = queue.SimpleQueue()
+
+    def email_now(profile: RoastProfile) -> str:
+        if email_cfg is None:
+            return "email not configured"
+        try:
+            send_roast(profile, email_cfg)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Email failed: %s", exc)
+            return str(exc)
+        return ""
+
+    web = None
+    if args.web_port:
+        from roastmaster.web.server import RoastWebServer
+
+        try:
+            web = RoastWebServer(
+                profile_mgr, live, port=args.web_port,
+                email_fn=email_now if email_cfg else None,
+                coffees=coffee_lib,
+            )
+            web.start()
+        except OSError as exc:
+            logger.warning("Web page disabled (port %s): %s", args.web_port, exc)
+            web = None
+
     pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=8192)
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -1338,17 +1376,6 @@ def main(argv: list[str] | None = None) -> None:
     test_mode = args.test and serial_port is not None
 
     session = RoastSession()
-    profile_mgr = ProfileManager()
-    live = LiveState()
-
-    # Optional email of roast reports
-    from roastmaster.export.mailer import EmailConfig, send_roast, send_roast_async
-
-    email_cfg = EmailConfig.load(Path(args.email_config) if args.email_config else None)
-    logger.info("Email reports: %s", f"to {email_cfg.to}" if email_cfg else "not configured")
-    # Status messages from background threads (email results) for the CRT
-    ui_messages: queue.SimpleQueue[str] = queue.SimpleQueue()
-
     def email_async(profile: RoastProfile) -> None:
         if email_cfg is None:
             return
@@ -1358,16 +1385,6 @@ def main(argv: list[str] | None = None) -> None:
             ui_messages.put("EMAIL SENT" if ok else "EMAIL FAILED")
 
         send_roast_async(profile, email_cfg, on_done=done)
-
-    def email_now(profile: RoastProfile) -> str:
-        if email_cfg is None:
-            return "email not configured"
-        try:
-            send_roast(profile, email_cfg)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Email failed: %s", exc)
-            return str(exc)
-        return ""
 
     def finalize_roast(*, blocking: bool) -> None:
         """Save the roast in progress and auto-email it (reset / shutdown)."""
@@ -1386,7 +1403,6 @@ def main(argv: list[str] | None = None) -> None:
         except Exception:  # noqa: BLE001 — never block reset/shutdown
             logger.exception("Failed to finalize roast %s", session.roast_id)
 
-    coffee_lib = CoffeeLibrary()
     picker_coffees: list[Coffee | None] = []
 
     def apply_coffee(coffee: Coffee | None) -> str:
@@ -1404,21 +1420,6 @@ def main(argv: list[str] | None = None) -> None:
             current = recent[0].coffee_id if recent else None
         ids = [c.id if c else None for c in picker_coffees]
         renderer.show_picker(labels, ids.index(current) if current in ids else 0)
-
-    web = None
-    if args.web_port:
-        from roastmaster.web.server import RoastWebServer
-
-        try:
-            web = RoastWebServer(
-                profile_mgr, live, port=args.web_port,
-                email_fn=email_now if email_cfg else None,
-                coffees=coffee_lib,
-            )
-            web.start()
-        except OSError as exc:
-            logger.warning("Web page disabled (port %s): %s", args.web_port, exc)
-            web = None
 
     start_ticks = pygame.time.get_ticks()
     last_sample_s = -1
