@@ -65,14 +65,16 @@ When a plan changes, bump `version` and add a `history` entry saying why.
    and commits it.
 3. `git pull` on the Pi. The coffee appears in the list next start/reset.
 
-## The current plans (v1, 2026-09-28)
+## The current plans (v2, 2026-09-29)
 
 | Coffee | Charge | TP | Dry end | FC | Drop | DTR | Dev ΔT |
 |---|---|---|---|---|---|---|---|
-| Ethiopia Limu G2 (washed, 1,900 m) | 200 °C | 1:00 | 4:00 | 7:15 @ 186 | 8:50 @ 195.5 | 17.9% | 9.5 |
-| Honduras 18 Rabbit yellow honey (1,400 m) | 188 °C | 1:00 | 4:05 | 7:00 @ 185 | 8:40 @ 196 | 19.2% | 11 |
-| Peru decaf Sol y Café (water process) | 180 °C | 1:00 | 4:10 | 6:45 @ 182 | 8:15 @ 191.5 | 18.2% | 9.5 |
+| Ethiopia Limu G2 (washed, 1,900 m) | 195 °C | 0:42 | 3:50 | 7:15 @ 189 | 8:50 @ 198.5 | 17.9% | 9.5 |
+| Honduras 18 Rabbit yellow honey (1,400 m) | 185 °C | 0:42 | 3:45 | 7:00 @ 188 | 8:40 @ 198.5 | 19.2% | 10.5 |
+| Peru decaf Sol y Café (water process) | 180 °C | 0:42 | 3:55 | 5:45 @ 172 | 7:10 @ 182 | 19.8% | 10 |
 
-These are educated first guesses. The FC temperatures are the least certain, because
-the M1 probe reads low by a unit-specific amount. Your first roast of each will
-calibrate them.
+v2 comes from the first real roasts on 2026-09-29. The turning point on this drum is about
+0:40, not 1:00. First crack showed at 188.9 °C for the Honduras and 172 °C for the decaf;
+decaf cracks low. Every plan now needs a steady 10+ minute preheat and a lower burner at
+charge. Burner steps start about 2 minutes before FC, because burner changes take roughly
+45-60 s to show in RoR. The Limu FC (189) is still an estimate.
