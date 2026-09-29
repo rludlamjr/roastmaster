@@ -154,11 +154,16 @@ class Renderer:
         self._browser_visible = False
 
         # -- Coffee picker overlay (same widget, different wording) --
+        # Double-size text so it reads easily on the CRT from the roaster
+        picker_w = SCREEN_WIDTH - 40
+        picker_h = 340
         self._picker = ProfileBrowser(
-            rect=(browser_x, browser_y, browser_w, browser_h),
+            rect=((SCREEN_WIDTH - picker_w) // 2, (SCREEN_HEIGHT - picker_h) // 2,
+                  picker_w, picker_h),
             title="WHICH COFFEE?",
             footer="KNOB:MOVE  PUSH:SELECT",
             empty_text="NO COFFEES",
+            text_scale=2,
         )
         self._picker_visible = False
 

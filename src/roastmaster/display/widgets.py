@@ -989,11 +989,21 @@ class ProfileBrowser:
         title: str = "LOAD PROFILE",
         footer: str = "UP/DN:NAV  ENTER:LOAD  L:CANCEL",
         empty_text: str = "NO SAVED PROFILES",
+        text_scale: int = 1,
     ) -> None:
         self.rect = pygame.Rect(rect)
         self.title = title
         self.footer = footer
         self.empty_text = empty_text
+        # Row/footer text size; larger lists fit fewer rows in the same box
+        self.text_scale = text_scale
+        self._row_h = text_height(text_scale) + 6
+        if text_scale == 1:
+            self._rows = self._VISIBLE_ROWS
+        else:
+            header = 6 + text_height(2) + 4 + 6
+            footer_h = text_height(text_scale) + 12
+            self._rows = max(1, (self.rect.height - header - footer_h) // self._row_h)
         self._profiles: list[str] = []
         self._cursor: int = 0
         self._scroll_offset: int = 0
@@ -1002,7 +1012,7 @@ class ProfileBrowser:
         """Set the list of available profile names (and optionally the cursor)."""
         self._profiles = list(profiles)
         self._cursor = max(0, min(cursor, len(self._profiles) - 1))
-        self._scroll_offset = max(0, self._cursor - self._VISIBLE_ROWS + 1)
+        self._scroll_offset = max(0, self._cursor - self._rows + 1)
 
     @property
     def profiles(self) -> list[str]:
@@ -1030,8 +1040,8 @@ class ProfileBrowser:
         """Move the cursor down one entry."""
         if self._cursor < len(self._profiles) - 1:
             self._cursor += 1
-            if self._cursor >= self._scroll_offset + self._VISIBLE_ROWS:
-                self._scroll_offset = self._cursor - self._VISIBLE_ROWS + 1
+            if self._cursor >= self._scroll_offset + self._rows:
+                self._scroll_offset = self._cursor - self._rows + 1
 
     def draw(self, surface: pygame.Surface) -> None:
         r = self.rect
@@ -1054,22 +1064,23 @@ class ProfileBrowser:
 
         if not self._profiles:
             msg = self.empty_text
-            mw = text_width(msg, scale=1)
+            mw = text_width(msg, scale=self.text_scale)
             render_text(
                 surface, msg,
                 r.x + (r.width - mw) // 2,
                 list_y + 20,
-                theme.TEXT_DIM, scale=1,
+                theme.TEXT_DIM, scale=self.text_scale,
             )
         else:
-            end = min(self._scroll_offset + self._VISIBLE_ROWS, len(self._profiles))
+            sc = self.text_scale
+            end = min(self._scroll_offset + self._rows, len(self._profiles))
             for i in range(self._scroll_offset, end):
-                row_y = list_y + (i - self._scroll_offset) * self._ROW_HEIGHT
+                row_y = list_y + (i - self._scroll_offset) * self._row_h
                 name = self._profiles[i]
 
                 if i == self._cursor:
                     # Highlight bar
-                    bar_rect = (r.x + 4, row_y, r.width - 8, self._ROW_HEIGHT)
+                    bar_rect = (r.x + 4, row_y, r.width - 8, self._row_h)
                     pygame.draw.rect(surface, theme.GREEN_DIM, bar_rect)
                     prefix = "> "
                     color = theme.TEXT
@@ -1078,17 +1089,20 @@ class ProfileBrowser:
                     color = theme.TEXT_DIM
 
                 label = f"{prefix}{name}"
-                render_text(surface, label, r.x + 8, row_y + 2, color, scale=1)
+                render_text(surface, label, r.x + 8, row_y + 3, color, scale=sc)
 
             # Scroll indicators
+            ind_w = text_width("V", scale=sc) + 8
             if self._scroll_offset > 0:
-                render_text(surface, "^", r.right - 16, list_y, theme.TEXT_DIM, scale=1)
+                render_text(surface, "^", r.right - ind_w, list_y, theme.TEXT_DIM, scale=sc)
             if end < len(self._profiles):
-                bottom_y = list_y + self._VISIBLE_ROWS * self._ROW_HEIGHT
-                render_text(surface, "v", r.right - 16, bottom_y - 10, theme.TEXT_DIM, scale=1)
+                bottom_y = list_y + self._rows * self._row_h
+                render_text(surface, "v", r.right - ind_w, bottom_y - text_height(sc) - 2,
+                            theme.TEXT_DIM, scale=sc)
 
         # Footer
         footer = self.footer
-        fw = text_width(footer, scale=1)
-        fy = r.bottom - text_height(1) - 6
-        render_text(surface, footer, r.x + (r.width - fw) // 2, fy, theme.TEXT_DIM, scale=1)
+        fw = text_width(footer, scale=self.text_scale)
+        fy = r.bottom - text_height(self.text_scale) - 6
+        render_text(surface, footer, r.x + (r.width - fw) // 2, fy, theme.TEXT_DIM,
+                    scale=self.text_scale)
