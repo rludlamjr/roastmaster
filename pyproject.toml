@@ -8,6 +8,7 @@ dependencies = [
     "pygame>=2.5.0",
     "pyserial>=3.5",
     "gpiod>=2.1; sys_platform == 'linux'",
+    "spidev>=3.6; sys_platform == 'linux'",  # MCP3008 ADC (burner/air/drum pots)
 ]
 
 [dependency-groups]
