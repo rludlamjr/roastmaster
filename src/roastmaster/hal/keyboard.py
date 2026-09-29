@@ -32,6 +32,8 @@ _KEY_TO_EVENT: dict[int, InputEvent] = {
     pygame.K_s: InputEvent.PROFILE_SAVE,
     pygame.K_l: InputEvent.PROFILE_LOAD,
     pygame.K_RETURN: InputEvent.CONFIRM,
+    pygame.K_PAGEUP: InputEvent.NAV_UP,
+    pygame.K_PAGEDOWN: InputEvent.NAV_DOWN,
     pygame.K_q: InputEvent.QUIT,
     pygame.K_ESCAPE: InputEvent.QUIT,
     pygame.K_F12: InputEvent.HELP_TOGGLE,

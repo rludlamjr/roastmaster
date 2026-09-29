@@ -1,0 +1,63 @@
+{
+  "id": "ethiopia-limu-g2",
+  "name": "Ethiopia Organic Limu G2",
+  "short": "LIMU G2",
+  "status": "active",
+  "version": 1,
+  "source_url": "https://coffeebeancorral.com/products/ethiopian-organic-limu-g2",
+  "origin": "Ethiopia, Oromia, Jimma zone, Limu",
+  "process": "Washed",
+  "altitude_m": 1900,
+  "variety": "Ethiopian landraces / heirloom",
+  "vendor_notes": "Fruity with lime citrus, herbal and floral notes. Chocolaty and complex. Brightness 6/7, body 4/7, sweetness 3/7, complexity 7/7.",
+  "goal": "Bright, fruity, floral light roast for espresso",
+  "rationale": "High-grown (1,900 m) washed heirloom beans are small and dense: they take heat well and need a strong start, or the roast runs out of momentum and tastes flat. The lime and floral notes are fragile, so development stays short (DTR ~18%, ~9-10 C after FC). Sweetness is the weak spot (3/7), and light Ethiopians can be sour as espresso, so development isn't cut to the bone. If shots are sour or thin, add 10-15 s of development first.",
+  "plan": {
+    "preheat_sv_c": 200,
+    "charge_bt_c": 200,
+    "tp_s": 60,
+    "tp_bt_c": 100,
+    "peak_s": 120,
+    "dry_end_s": 240,
+    "fc_s": 435,
+    "fc_bt_c": 186,
+    "drop_s": 530,
+    "drop_bt_c": 195.5,
+    "dev_ror_ratio": 0.5
+  },
+  "targets": {
+    "total_time_s": [
+      495,
+      570
+    ],
+    "dtr_pct": [
+      16,
+      20
+    ],
+    "dev_delta_c": [
+      8,
+      12
+    ],
+    "dev_time_s": [
+      80,
+      110
+    ]
+  },
+  "steps": [
+    "Preheat SV 200 C for a full 20 min. Drum 90, air 30.",
+    "Charge 170 g at BT ~200 C. Burner 90%, air 30.",
+    "TP ~1:00 near 100 C. Hold 90%: RoR should peak ~24 C/min around 2:00.",
+    "Dry end (150 C, ~4:00): burner 80%, air 40.",
+    "At ~170 C (~5:40): burner 70%, air 45.",
+    "~30 s before FC (~180 C): burner 60%. Don't cut hard at FC.",
+    "FC ~7:15 at ~186 C: burner 55%, air 50. RoR drifts ~8 -> 4.",
+    "Drop ~8:50 at ~195 C (about 9-10 C after FC)."
+  ],
+  "history": [
+    {
+      "version": 1,
+      "date": "2026-09-28",
+      "note": "Initial plan from vendor data (Coffee Bean Corral) and Kaleido M1 behaviour. FC temperature is a guess until your first roast calibrates the probe."
+    }
+  ]
+}

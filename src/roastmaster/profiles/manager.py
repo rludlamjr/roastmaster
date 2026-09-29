@@ -8,13 +8,24 @@ are derived from the profile name (sanitised for the filesystem) with a
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
+import threading
+import time
 from pathlib import Path
 
 from roastmaster.profiles.schema import RoastProfile
 
+logger = logging.getLogger(__name__)
+
 # Default storage directory (relative to project root / working dir).
 _DEFAULT_DIR = Path("profiles")
+
+
+def new_roast_id() -> str:
+    """Timestamp id for a new roast, used as its file stem."""
+    return time.strftime("%Y-%m-%d_%H%M%S")
 
 
 def _sanitise_filename(name: str) -> str:
@@ -36,6 +47,8 @@ class ProfileManager:
 
     def __init__(self, directory: Path | str | None = None) -> None:
         self._dir = Path(directory) if directory else _DEFAULT_DIR
+        # Saves come from the roast loop and the web server thread.
+        self._lock = threading.RLock()
 
     @property
     def directory(self) -> Path:
@@ -61,12 +74,36 @@ class ProfileManager:
         Path
             The path to the saved file.
         """
-        self._dir.mkdir(parents=True, exist_ok=True)
-
         stem = filename or _sanitise_filename(profile.name)
         path = self._dir / f"{stem}.json"
-        path.write_text(json.dumps(profile.to_dict(), indent=2) + "\n")
+        with self._lock:
+            self._dir.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(profile.to_dict(), indent=2) + "\n")
+            os.replace(tmp, path)
         return path
+
+    def save_roast(self, profile: RoastProfile) -> Path:
+        """Save a roast under its ``roast_id``, keeping edits made elsewhere.
+
+        If the file already exists, user-edited fields (coffee, weights,
+        rating, notes) that are empty on *profile* are taken from the file,
+        so the roast loop re-saving never wipes notes entered on the web page.
+        The analysis summary is recomputed.
+        """
+        if not profile.roast_id:
+            profile.roast_id = new_roast_id()
+        with self._lock:
+            try:
+                existing = self.load(profile.roast_id)
+            except (FileNotFoundError, ValueError, KeyError):
+                existing = None
+            if existing is not None:
+                for name in RoastProfile.USER_FIELDS:
+                    if getattr(profile, name) in (None, "", 0, 0.0):
+                        setattr(profile, name, getattr(existing, name))
+            profile.analysis = profile.analyze().to_dict()
+            return self.save(profile, filename=profile.roast_id)
 
     # ------------------------------------------------------------------
     # Load
@@ -104,3 +141,38 @@ class ProfileManager:
         if not self._dir.is_dir():
             return []
         return sorted(p.stem for p in self._dir.glob("*.json"))
+
+    def list_recent(self) -> list[str]:
+        """Profile names, newest file first."""
+        if not self._dir.is_dir():
+            return []
+        paths = sorted(
+            self._dir.glob("*.json"), key=lambda p: (p.stat().st_mtime, p.stem), reverse=True
+        )
+        return [p.stem for p in paths]
+
+    def load_all(self) -> list[RoastProfile]:
+        """Load every readable profile, newest first. Unreadable files are skipped."""
+        out: list[RoastProfile] = []
+        for name in self.list_recent():
+            try:
+                profile = self.load(name)
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                logger.warning("Skipping unreadable profile %s: %s", name, exc)
+                continue
+            if not profile.roast_id:
+                profile.roast_id = name
+            out.append(profile)
+        out.sort(key=lambda p: p.roast_date or "", reverse=True)
+        return out
+
+    def recent_coffees(self, limit: int = 20) -> list[str]:
+        """Distinct coffee names from saved roasts, most recent first."""
+        seen: list[str] = []
+        for profile in self.load_all():
+            name = profile.coffee.strip()
+            if name and name.lower() not in (s.lower() for s in seen):
+                seen.append(name)
+            if len(seen) >= limit:
+                break
+        return seen

@@ -14,26 +14,37 @@ import argparse
 import logging
 import math
 import os
+import queue
 import signal
 import sys
+import time
+import unicodedata
 from pathlib import Path
 
 import pygame
 
 from roastmaster.config import FPS, SCREEN_HEIGHT, SCREEN_WIDTH, WINDOW_TITLE
 from roastmaster.display.renderer import Renderer
-from roastmaster.display.units import f_to_c
+from roastmaster.display.units import c_to_f, f_to_c
+from roastmaster.engine.analysis import (
+    DEFAULT_TARGETS,
+    PlanTargets,
+    RoastAnalysis,
+    analyze_roast,
+)
 from roastmaster.engine.events import EventManager, EventType
 from roastmaster.engine.pid import PIDController
 from roastmaster.engine.roast import RoastPhase, RoastStateMachine
 from roastmaster.engine.ror import RoRCalculator
 from roastmaster.hal.base import InputEvent
 from roastmaster.hal.keyboard import KeyboardInput
-from roastmaster.sfx import SFX
-from roastmaster.profiles.manager import ProfileManager
+from roastmaster.profiles.coffees import Coffee, CoffeeLibrary
+from roastmaster.profiles.manager import ProfileManager, new_roast_id
 from roastmaster.profiles.schema import ProfileEvent, ProfileSample, RoastProfile
 from roastmaster.serial.protocol import RoasterDevice, RoasterReading
+from roastmaster.sfx import SFX
 from roastmaster.sim.device_adapter import SimulatedRoasterDevice
+from roastmaster.web.live import LiveSnapshot, LiveState
 
 # ---------------------------------------------------------------------------
 # Read-only device wrapper (--test mode)
@@ -92,10 +103,19 @@ class ReadOnlyDevice:
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_BATCH_G = 170.0
+
+
 class RoastSession:
     """Coordinates engine components for one roasting session."""
 
     def __init__(self) -> None:
+        # Roast metadata. Coffee and batch weight carry over between roasts
+        # (you usually roast the same bean several times in a row).
+        self.meta: dict = {"coffee": "", "weight_g": DEFAULT_BATCH_G, "notes": ""}
+        # Selected coffee plan (carries over between roasts like the coffee name)
+        self.coffee: Coffee | None = None
+        self.plan_targets: PlanTargets | None = None
         self.fsm = RoastStateMachine()
         self.events = EventManager()
         self.ror = RoRCalculator()
@@ -112,6 +132,13 @@ class RoastSession:
         # Accumulated samples for profile saving
         self.samples: list[ProfileSample] = []
 
+        # Identity / persistence of the current roast
+        self.roast_id = ""
+        self.roast_date = ""
+        self.saved_sample_count = 0
+        self.emailed = False
+        self.analysis: RoastAnalysis | None = None
+
     def reset(self) -> None:
         self.fsm.reset()
         self.events.reset()
@@ -124,6 +151,47 @@ class RoastSession:
         self.et = None
         self.current_ror = None
         self.samples = []
+        self.roast_id = ""
+        self.roast_date = ""
+        self.saved_sample_count = 0
+        self.emailed = False
+        self.analysis = None
+        self.meta["notes"] = ""
+
+    @property
+    def charged(self) -> bool:
+        return self.events.get_event(EventType.CHARGE) is not None
+
+    @property
+    def dropped(self) -> bool:
+        return self.events.get_event(EventType.DROP) is not None
+
+    @property
+    def unsaved(self) -> bool:
+        return len(self.samples) != self.saved_sample_count
+
+    def start_roast_identity(self) -> None:
+        """Give the roast its id/date (at CHARGE, or on first save)."""
+        if not self.roast_id:
+            self.roast_id = new_roast_id()
+            self.roast_date = time.strftime("%Y-%m-%d %H:%M")
+
+    def select_coffee(self, coffee: Coffee | None) -> None:
+        """Roast against this coffee's plan (None = no plan / blank)."""
+        self.coffee = coffee
+        self.plan_targets = coffee.plan_targets() if coffee else None
+        self.meta["coffee"] = coffee.name if coffee else ""
+        if self.charged:
+            self.update_analysis()
+
+    def update_analysis(self) -> RoastAnalysis:
+        self.analysis = analyze_roast(
+            self.samples, self.events.events, now=self.fsm.elapsed,
+            green_weight_g=self.meta.get("weight_g") or None,
+            targets=self.coffee.analysis_targets() if self.coffee else DEFAULT_TARGETS,
+            plan=self.plan_targets,
+        )
+        return self.analysis
 
     def build_profile(self) -> RoastProfile:
         """Build a RoastProfile from the current session data."""
@@ -135,7 +203,15 @@ class RoastSession:
             )
             for e in self.events.events
         ]
+        self.start_roast_identity()
         return RoastProfile(
+            roast_id=self.roast_id,
+            roast_date=self.roast_date,
+            coffee=str(self.meta.get("coffee", "")),
+            weight_g=float(self.meta.get("weight_g") or 0.0),
+            notes=str(self.meta.get("notes", "")),
+            coffee_id=self.coffee.id if self.coffee else "",
+            plan=self.coffee.snapshot() if self.coffee else {},
             samples=list(self.samples),
             events=profile_events,
         )
@@ -276,6 +352,7 @@ def _handle_input(
             pass
         if session.bt is not None:
             session.events.mark_event(EventType.CHARGE, elapsed, session.bt)
+        session.start_roast_identity()
         try:
             device.mark_event(1)
         except (ConnectionError, OSError, RuntimeError) as exc:
@@ -476,17 +553,7 @@ def _sample(
             device.set_heater(0)
 
     # Record sample for profile saving
-    session.samples.append(
-        ProfileSample(
-            elapsed=elapsed,
-            bt=reading.bean_temp,
-            et=reading.env_temp,
-            ror=session.current_ror,
-            burner=float(hal.state.burner),
-            drum=float(hal.state.drum),
-            air=float(hal.state.air),
-        )
-    )
+    _record_sample(session, device, hal, elapsed, reading.bean_temp, reading.env_temp)
 
     # Push data point to renderer graph traces
     renderer.push_data(
@@ -497,6 +564,53 @@ def _sample(
             "ror": session.current_ror,
         }
     )
+
+
+def _device_state_float(device: RoasterDevice, tag: str) -> float | None:
+    """Read a numeric value from the Kaleido state cache, if the device has one."""
+    if not hasattr(device, "get_state"):
+        return None
+    try:
+        v = device.get_state(tag)  # type: ignore[attr-defined]
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _record_sample(
+    session: RoastSession,
+    device: RoasterDevice,
+    hal: KeyboardInput,
+    elapsed: float,
+    bt: float,
+    et: float,
+) -> None:
+    """Append a sample (with roaster setpoint/heater if reported) and re-analyse."""
+    sv = _device_state_float(device, "TS")
+    if sv is not None:
+        try:
+            tu = device.get_state("TU")  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            tu = None
+        if tu == "C":
+            sv = c_to_f(sv)
+    session.samples.append(
+        ProfileSample(
+            elapsed=elapsed,
+            bt=bt,
+            et=et,
+            ror=session.current_ror,
+            burner=float(hal.state.burner),
+            drum=float(hal.state.drum),
+            air=float(hal.state.air),
+            sv=sv,
+            hp=_device_state_float(device, "HP"),
+        )
+    )
+    if session.charged:
+        session.update_analysis()
 
 
 def _is_valid_reading(bt: float, et: float) -> bool:
@@ -567,17 +681,7 @@ def _safe_sample(
         except (ConnectionError, OSError, RuntimeError):
             pass  # best-effort control
 
-    session.samples.append(
-        ProfileSample(
-            elapsed=elapsed,
-            bt=bt,
-            et=et,
-            ror=session.current_ror,
-            burner=float(hal.state.burner),
-            drum=float(hal.state.drum),
-            air=float(hal.state.air),
-        )
-    )
+    _record_sample(session, device, hal, elapsed, bt, et)
 
     renderer.push_data(
         {
@@ -589,6 +693,75 @@ def _safe_sample(
     )
 
     return "", error_count
+
+
+# ---------------------------------------------------------------------------
+# Saving, coffee selection, live publishing
+# ---------------------------------------------------------------------------
+
+# Short graph labels for events (the CRT font has no underscore)
+_EVENT_LABELS = {
+    "CHARGE": "CHG",
+    "TURNING_POINT": "TP",
+    "DRY_END": "DE",
+    "FIRST_CRACK": "FC",
+    "SECOND_CRACK": "SC",
+    "DROP": "DROP",
+}
+
+
+def crt_text(text: str) -> str:
+    """Reduce text to what the CRT bitmap font can draw (ASCII, upper case)."""
+    ascii_text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return ascii_text.upper()
+
+
+def save_session(session: RoastSession, profile_mgr: ProfileManager) -> tuple[Path, RoastProfile]:
+    """Save the current roast under its roast id (merging web edits)."""
+    profile = session.build_profile()
+    path = profile_mgr.save_roast(profile)
+    session.saved_sample_count = len(session.samples)
+    return path, profile
+
+
+def picker_entries(library: CoffeeLibrary) -> tuple[list[Coffee | None], list[str]]:
+    """Coffees offered at start/reset (plus a blank entry) and their CRT labels."""
+    coffees: list[Coffee | None] = list(library.all())
+    labels = [
+        crt_text(c.label) + (" (DRAFT)" if c.status == "draft" else "")
+        for c in coffees if c is not None
+    ]
+    coffees.append(None)
+    labels.append("NEW / BLANK")
+    return coffees, labels
+
+
+def cycle_coffee(choices: list[str], current: str, step: int) -> str:
+    if not choices:
+        return current
+    lowered = [c.lower() for c in choices]
+    idx = lowered.index(current.lower()) if current.lower() in lowered else 0
+    return choices[(idx + step) % len(choices)]
+
+
+def publish_live(live: LiveState, session: RoastSession) -> None:
+    live.publish(
+        LiveSnapshot(
+            roast_id=session.roast_id if session.saved_sample_count else "",
+            coffee_id=session.coffee.id if session.coffee else "",
+            fsm_phase=session.fsm.phase.name,
+            bt_f=session.bt,
+            et_f=session.et,
+            ror_f=session.current_ror,
+            meta=dict(session.meta),
+            samples=list(session.samples),
+            events=[
+                ProfileEvent(e.event_type.name, e.elapsed, e.temperature)
+                for e in session.events.events
+            ],
+            analysis=session.analysis,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -617,6 +790,17 @@ def _build_render_data(
         "heat_enabled": session.heat_enabled,
         "cooling_enabled": session.cooling_enabled,
         "message": message,
+        "analysis": session.analysis,
+        # Info-panel clock: time since CHARGE once charged, else session time
+        "timer": (
+            session.fsm.roast_elapsed
+            if session.charged and session.fsm.phase is not RoastPhase.IDLE
+            else session.fsm.elapsed
+        ),
+        "coffee": crt_text(
+            session.coffee.label if session.coffee else str(session.meta.get("coffee", ""))
+        ),
+        "coffee_plan": session.coffee,
     }
 
 
@@ -723,7 +907,7 @@ def _show_connection_error(
 ) -> str:
     """Show connection error screen. Returns 'retry' or 'simulator'."""
     from roastmaster.display import theme
-    from roastmaster.display.fonts import render_text, text_height, text_width
+    from roastmaster.display.fonts import render_text, text_width
 
     options = ["RETRY", "SIMULATOR"]
     cursor = 0
@@ -997,6 +1181,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (default: INFO)",
     )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=8080,
+        help="Port for the roast log web page (default: 8080, 0 disables it)",
+    )
+    parser.add_argument(
+        "--email-config",
+        default=None,
+        help="Email settings TOML (default: ~/.config/roastmaster/email.toml)",
+    )
     return parser.parse_args(argv)
 
 
@@ -1144,13 +1339,96 @@ def main(argv: list[str] | None = None) -> None:
 
     session = RoastSession()
     profile_mgr = ProfileManager()
+    live = LiveState()
+
+    # Optional email of roast reports
+    from roastmaster.export.mailer import EmailConfig, send_roast, send_roast_async
+
+    email_cfg = EmailConfig.load(Path(args.email_config) if args.email_config else None)
+    logger.info("Email reports: %s", f"to {email_cfg.to}" if email_cfg else "not configured")
+    # Status messages from background threads (email results) for the CRT
+    ui_messages: queue.SimpleQueue[str] = queue.SimpleQueue()
+
+    def email_async(profile: RoastProfile) -> None:
+        if email_cfg is None:
+            return
+        session.emailed = True
+
+        def done(ok: bool, err: str) -> None:
+            ui_messages.put("EMAIL SENT" if ok else "EMAIL FAILED")
+
+        send_roast_async(profile, email_cfg, on_done=done)
+
+    def email_now(profile: RoastProfile) -> str:
+        if email_cfg is None:
+            return "email not configured"
+        try:
+            send_roast(profile, email_cfg)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Email failed: %s", exc)
+            return str(exc)
+        return ""
+
+    def finalize_roast(*, blocking: bool) -> None:
+        """Save the roast in progress and auto-email it (reset / shutdown)."""
+        if not session.charged:
+            return
+        try:
+            if session.unsaved:
+                save_session(session, profile_mgr)
+            if email_cfg and email_cfg.auto_send and session.dropped and not session.emailed:
+                profile = profile_mgr.load(session.roast_id)
+                if blocking:
+                    session.emailed = True
+                    email_now(profile)
+                else:
+                    email_async(profile)
+        except Exception:  # noqa: BLE001 — never block reset/shutdown
+            logger.exception("Failed to finalize roast %s", session.roast_id)
+
+    coffee_lib = CoffeeLibrary()
+    picker_coffees: list[Coffee | None] = []
+
+    def apply_coffee(coffee: Coffee | None) -> str:
+        session.select_coffee(coffee)
+        renderer.set_target_plan(session.plan_targets)
+        return f"COFFEE: {crt_text(coffee.label)}" if coffee else "NO COFFEE PLAN"
+
+    def open_picker() -> None:
+        nonlocal picker_coffees
+        picker_coffees, labels = picker_entries(coffee_lib)
+        current = session.coffee.id if session.coffee else None
+        if current is None and session.coffee is None and not session.meta.get("coffee"):
+            # First start: default to the coffee of the most recent roast
+            recent = profile_mgr.load_all()[:1]
+            current = recent[0].coffee_id if recent else None
+        ids = [c.id if c else None for c in picker_coffees]
+        renderer.show_picker(labels, ids.index(current) if current in ids else 0)
+
+    web = None
+    if args.web_port:
+        from roastmaster.web.server import RoastWebServer
+
+        try:
+            web = RoastWebServer(
+                profile_mgr, live, port=args.web_port,
+                email_fn=email_now if email_cfg else None,
+                coffees=coffee_lib,
+            )
+            web.start()
+        except OSError as exc:
+            logger.warning("Web page disabled (port %s): %s", args.web_port, exc)
+            web = None
 
     start_ticks = pygame.time.get_ticks()
     last_sample_s = -1
     message = ""
     message_expire: float = 0.0
     error_count = 0
-    debug_overlay = False
+    # Views: main graph, or (DEBUG switch on) the phase screen and its pages
+    phase_view = False
+    page = "phases"  # "phases" | "plan" | "system"
+    open_picker()  # which coffee are we roasting?
 
     # Clean shutdown on Ctrl-C
     running = True
@@ -1177,8 +1455,9 @@ def main(argv: list[str] | None = None) -> None:
                     running = False
                     break
                 if event == InputEvent.HELP_TOGGLE:
-                    debug_overlay = not debug_overlay
-                    message = "DEBUG ON" if debug_overlay else "DEBUG OFF"
+                    phase_view = not phase_view
+                    page = "phases"
+                    message = "PHASES" if phase_view else ""
                     message_expire = session.fsm.elapsed + 2.0
                     continue
                 if event == InputEvent.UNIT_TOGGLE:
@@ -1192,7 +1471,9 @@ def main(argv: list[str] | None = None) -> None:
                     message_expire = session.fsm.elapsed + 2.0
                     continue
                 if event == InputEvent.ROAST_RESET:
+                    finalize_roast(blocking=False)
                     session.reset()
+                    open_picker()
                     start_ticks = pygame.time.get_ticks()
                     last_sample_s = -1
                     error_count = 0
@@ -1207,7 +1488,8 @@ def main(argv: list[str] | None = None) -> None:
                         renderer.browser.move_up()
                     elif event in (InputEvent.BURNER_DOWN, InputEvent.NAV_DOWN):
                         renderer.browser.move_down()
-                    elif event == InputEvent.CONFIRM:
+                    elif event in (InputEvent.CONFIRM, InputEvent.PROFILE_LOAD):
+                        # Encoder push (PROFILE_LOAD) selects, like ENTER
                         name = renderer.browser.selected_name
                         if name is not None:
                             try:
@@ -1219,22 +1501,62 @@ def main(argv: list[str] | None = None) -> None:
                                 message = "LOAD FAILED"
                             message_expire = session.fsm.elapsed + 3.0
                         renderer.hide_browser()
-                    elif event == InputEvent.PROFILE_LOAD:
-                        renderer.hide_browser()
+                    continue
+
+                # Coffee picker (start / reset / encoder push): only navigation is
+                # captured — heat, cool, charge etc. keep working underneath.
+                if renderer.picker_visible:
+                    if event in (InputEvent.NAV_UP, InputEvent.BURNER_UP):
+                        renderer.picker.move_up()
+                        continue
+                    if event in (InputEvent.NAV_DOWN, InputEvent.BURNER_DOWN):
+                        renderer.picker.move_down()
+                        continue
+                    if event in (InputEvent.CONFIRM, InputEvent.PROFILE_LOAD):
+                        idx = renderer.picker.cursor
+                        if 0 <= idx < len(picker_coffees):
+                            message = apply_coffee(picker_coffees[idx])
+                            message_expire = session.fsm.elapsed + 3.0
+                        renderer.hide_picker()
+                        continue
+                    if event == InputEvent.CHARGE:
+                        renderer.hide_picker()  # keep the current selection
+
+                # Phase screen: encoder turns change coffee, push flips pages
+                if phase_view and event in (InputEvent.NAV_UP, InputEvent.NAV_DOWN):
+                    options = [c for c in coffee_lib.all()]
+                    ids = [""] + [c.id for c in options]
+                    step = 1 if event == InputEvent.NAV_DOWN else -1
+                    new_id = cycle_coffee(ids, session.coffee.id if session.coffee else "", step)
+                    message = apply_coffee(next((c for c in options if c.id == new_id), None))
+                    message_expire = session.fsm.elapsed + 2.0
+                    continue
+                if phase_view and event == InputEvent.PROFILE_LOAD:
+                    page = {"phases": "plan", "plan": "system"}.get(page, "phases")
                     continue
 
                 msg = _handle_input(event, session, device, hal)
                 if msg == "SAVE":
                     try:
-                        profile = session.build_profile()
-                        path = profile_mgr.save(profile)
-                        msg = f"SAVED: {path.name}"
+                        path, profile = save_session(session, profile_mgr)
+                        msg = f"SAVED {path.stem}"
+                        if email_cfg is not None:
+                            email_async(profile)
+                            msg += " + EMAIL"
                     except OSError as exc:
                         logger.warning("Failed to save profile: %s", exc)
                         msg = "SAVE FAILED"
+                elif msg == "DROP" and session.charged:
+                    # Auto-save at DROP so a roast is never lost
+                    try:
+                        session.update_analysis()
+                        save_session(session, profile_mgr)
+                        msg = "DROP - SAVED"
+                    except OSError as exc:
+                        logger.warning("Auto-save at drop failed: %s", exc)
+                        msg = "DROP - SAVE FAILED"
                 elif msg == "BROWSE":
-                    profiles = profile_mgr.list_profiles()
-                    renderer.show_browser(profiles)
+                    open_picker()  # encoder push on the graph: choose the coffee
                     msg = None
                 if msg == "CHARGE MARKED":
                     renderer.set_charge_time(session.fsm.roast_start_time)
@@ -1243,6 +1565,21 @@ def main(argv: list[str] | None = None) -> None:
                     message_expire = session.fsm.elapsed + 3.0
             if not running:
                 break
+
+            # Background-thread status (email) and web edits to the roast in progress
+            while not ui_messages.empty():
+                message = ui_messages.get_nowait()
+                message_expire = session.fsm.elapsed + 3.0
+            pending_meta = live.drain_meta()
+            if pending_meta:
+                if "coffee_id" in pending_meta:
+                    cid = str(pending_meta.pop("coffee_id"))
+                    message = apply_coffee(coffee_lib.get(cid) if cid else None)
+                    message_expire = session.fsm.elapsed + 3.0
+                if session.coffee is not None:
+                    pending_meta.pop("coffee", None)  # name comes from the plan
+                session.meta.update(pending_meta)
+                publish_live(live, session)
 
             # 3. Send current control state to device
             state = hal.state
@@ -1268,6 +1605,7 @@ def main(argv: list[str] | None = None) -> None:
                 sample_msg, error_count = _safe_sample(
                     session, device, hal, renderer, error_count
                 )
+                publish_live(live, session)
                 if sample_msg and not message:
                     message = sample_msg
                     message_expire = session.fsm.elapsed + 3.0
@@ -1278,17 +1616,26 @@ def main(argv: list[str] | None = None) -> None:
 
             # 6. Update event markers on the graph
             if session.events.events:
-                renderer.set_events([
-                    (e.elapsed, e.temperature, e.event_type.name)
+                markers = [
+                    (e.elapsed, e.temperature, _EVENT_LABELS.get(e.event_type.name, "?"))
                     for e in session.events.events
-                ])
+                ]
+                a = session.analysis
+                charge_ev = session.events.get_event(EventType.CHARGE)
+                if (
+                    a is not None and charge_ev is not None
+                    and a.dry_end_auto and a.dry_end is not None
+                ):
+                    markers.append((charge_ev.elapsed + a.dry_end.time_s, a.dry_end.bt_f, "DE"))
+                renderer.set_events(markers)
 
             # 7. Render
             data = _build_render_data(session, hal, message, test_mode=test_mode)
             data["connected"] = bool(getattr(device, "connected", False))
             data["device_label"] = device_label
-            data["debug_visible"] = debug_overlay
-            if debug_overlay:
+            data["view"] = page if phase_view else "graph"
+            data["debug_visible"] = phase_view and page == "system"
+            if phase_view and page == "system":
                 conn = "ONLINE" if data["connected"] else "OFFLINE"
                 lines = [
                     f"DEV: {device_label}",
@@ -1332,6 +1679,8 @@ def main(argv: list[str] | None = None) -> None:
                         )
                     except Exception as exc:  # noqa: BLE001
                         lines.append(f"RPT: <error {exc}>")
+                lines.append(f"WEB: {web.url}" if web else "WEB: OFF")
+                lines.append(f"EMAIL: {'TO ' + email_cfg.to if email_cfg else 'NOT SET UP'}")
                 if log_path is not None:
                     lines.append(f"LOG: {log_path.name}")
                 if serial_port and args.serial_log:
@@ -1344,6 +1693,12 @@ def main(argv: list[str] | None = None) -> None:
     finally:
         # Ensure clean shutdown regardless of how we exit
         logger.info("Shutting down...")
+        finalize_roast(blocking=True)
+        if web is not None:
+            try:
+                web.stop()
+            except Exception:  # noqa: BLE001
+                pass
         if hasattr(hal, "close"):
             try:
                 hal.close()

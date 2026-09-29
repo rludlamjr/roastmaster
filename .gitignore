@@ -20,3 +20,7 @@ logs/
 
 # Reference repos (cloned for protocol study, not part of our source)
 reference/
+
+# Roast data written on the Pi (profiles/untitled.json predates this)
+profiles/*.json
+*.json.tmp

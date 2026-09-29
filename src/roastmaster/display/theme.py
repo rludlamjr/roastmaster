@@ -38,3 +38,7 @@ PROJECTION_BT = AMBER_MEDIUM
 
 # Event markers (CHARGE, FC, SC, DROP, TP)
 EVENT_MARKER = AMBER_BRIGHT
+
+# Coffee plan (target curve) overlay — a cool blue so it never reads as live data
+TARGET_BT = (110, 150, 255)
+TARGET_ROR = (70, 95, 170)

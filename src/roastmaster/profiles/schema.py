@@ -22,9 +22,11 @@ class ProfileSample:
     burner: float = 0.0  # heater %
     drum: float = 0.0  # drum speed %
     air: float = 0.0  # fan/air %
+    sv: float | None = None  # roaster setpoint (F), when reported
+    hp: float | None = None  # heater power reported by the roaster (%)
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "elapsed": round(self.elapsed, 1),
             "bt": round(self.bt, 1),
             "et": round(self.et, 1),
@@ -33,6 +35,11 @@ class ProfileSample:
             "drum": round(self.drum, 1),
             "air": round(self.air, 1),
         }
+        if self.sv is not None:
+            d["sv"] = round(self.sv, 1)
+        if self.hp is not None:
+            d["hp"] = round(self.hp, 1)
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> ProfileSample:
@@ -44,6 +51,8 @@ class ProfileSample:
             burner=d.get("burner", 0.0),
             drum=d.get("drum", 0.0),
             air=d.get("air", 0.0),
+            sv=d.get("sv"),
+            hp=d.get("hp"),
         )
 
 
@@ -82,23 +91,42 @@ class RoastProfile:
     # Metadata
     name: str = ""
     coffee: str = ""  # coffee name/origin
-    weight_g: float = 0.0  # batch weight in grams
-    notes: str = ""
+    weight_g: float = 0.0  # green (input) batch weight in grams
+    notes: str = ""  # roast notes (what you did / intended)
     roast_date: str = field(default_factory=lambda: time.strftime("%Y-%m-%d %H:%M"))
+    roast_id: str = ""  # timestamp id, also the file stem (e.g. 2026-09-28_1432)
+    roasted_weight_g: float | None = None  # weight after roasting
+    rating: int | None = None  # 1-10 cup score
+    tasting_notes: str = ""
+    coffee_id: str = ""  # coffee library id, when roasted against a plan
+    plan: dict = field(default_factory=dict)  # snapshot of that coffee's plan
 
     # Time series and events
     samples: list[ProfileSample] = field(default_factory=list)
     events: list[ProfileEvent] = field(default_factory=list)
 
+    # Analysis summary (Celsius) computed at save time — convenient for logs.
+    analysis: dict = field(default_factory=dict)
+
+    # Fields a person edits after the roast (web page); preserved across re-saves.
+    USER_FIELDS = ("coffee", "weight_g", "notes", "roasted_weight_g", "rating", "tasting_notes")
+
     def to_dict(self) -> dict:
         return {
+            "roast_id": self.roast_id,
             "name": self.name,
             "coffee": self.coffee,
             "weight_g": self.weight_g,
+            "roasted_weight_g": self.roasted_weight_g,
+            "rating": self.rating,
             "notes": self.notes,
+            "tasting_notes": self.tasting_notes,
             "roast_date": self.roast_date,
-            "samples": [s.to_dict() for s in self.samples],
+            "coffee_id": self.coffee_id,
+            "plan": self.plan,
+            "analysis": self.analysis,
             "events": [e.to_dict() for e in self.events],
+            "samples": [s.to_dict() for s in self.samples],
         }
 
     @classmethod
@@ -109,6 +137,40 @@ class RoastProfile:
             weight_g=d.get("weight_g", 0.0),
             notes=d.get("notes", ""),
             roast_date=d.get("roast_date", ""),
+            roast_id=d.get("roast_id", ""),
+            roasted_weight_g=d.get("roasted_weight_g"),
+            rating=d.get("rating"),
+            tasting_notes=d.get("tasting_notes", ""),
+            coffee_id=d.get("coffee_id", ""),
+            plan=d.get("plan") or {},
             samples=[ProfileSample.from_dict(s) for s in d.get("samples", [])],
             events=[ProfileEvent.from_dict(e) for e in d.get("events", [])],
+            analysis=d.get("analysis") or {},
+        )
+
+    def plan_coffee(self):  # -> Coffee | None
+        """The coffee plan this roast was made against (as it was that day)."""
+        if not self.plan:
+            return None
+        from roastmaster.profiles.coffees import Coffee
+
+        try:
+            coffee = Coffee.from_snapshot(self.plan)
+            coffee.curve()  # validate
+        except (ValueError, KeyError, TypeError):
+            return None
+        return coffee
+
+    def analyze(self, *, targets=None):  # -> RoastAnalysis
+        """Run the phase analysis over this profile's data (against its plan, if any)."""
+        from roastmaster.engine.analysis import DEFAULT_TARGETS, analyze_roast
+
+        coffee = self.plan_coffee()
+        return analyze_roast(
+            self.samples,
+            self.events,
+            targets=targets or (coffee.analysis_targets() if coffee else DEFAULT_TARGETS),
+            green_weight_g=self.weight_g or None,
+            roasted_weight_g=self.roasted_weight_g,
+            plan=coffee.plan_targets() if coffee else None,
         )

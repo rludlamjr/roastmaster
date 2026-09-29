@@ -1159,3 +1159,40 @@ class TestMessageOverlay:
             "phase": "IDLE",
             "message": "",
         })
+
+
+# ---------------------------------------------------------------------------
+# Phase screen
+# ---------------------------------------------------------------------------
+
+
+class TestPhaseScreen:
+    def _data(self, analysis, **extra):
+        return {"bt": 380.0, "et": 420.0, "ror": 15.0, "elapsed": 500.0,
+                "phase": "ROASTING", "burner": 50.0, "drum": 90.0, "air": 30.0,
+                "view": "phases", "analysis": analysis, "coffee": "RDP", **extra}
+
+    def test_renders_live_and_final(self, pygame_surface):
+        from tests.roast_fixtures import make_roast
+
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(pygame_surface)
+        for p in (make_roast(crash=True), make_roast(drop_s=None, until_s=455)):
+            r.render(self._data(p.analyze()))
+
+    def test_renders_waiting_for_charge(self, pygame_surface):
+        from roastmaster.display.renderer import Renderer
+
+        r = Renderer(pygame_surface)
+        r.render(self._data(None))
+
+    def test_phase_label(self):
+        from roastmaster.display.renderer import Renderer
+        from tests.roast_fixtures import make_roast
+
+        live = make_roast(drop_s=None, until_s=455).analyze()
+        assert Renderer._phase_label("ROASTING", live).startswith("DEV ")
+        assert Renderer._phase_label("ROASTING", None) == "ROASTING"
+        final = make_roast().analyze()
+        assert Renderer._phase_label("COOLING", final) == "COOLING"

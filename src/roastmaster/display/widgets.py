@@ -76,7 +76,7 @@ class GraphWidget:
     }
     # RoR lives on its own scale
     ROR_MIN = -10.0
-    ROR_MAX = 30.0
+    ROR_MAX = 50.0  # F/min (~28 C/min) — early-roast RoR on the M1 peaks ~40-45 F/min
 
     # Short labels for event markers on the graph
     EVENT_LABELS = {
@@ -114,6 +114,11 @@ class GraphWidget:
 
         # Event markers: list of (time, temp, short_label)
         self._event_markers: list[tuple[float, float, str]] = []
+
+        # Coffee plan overlay, times relative to CHARGE: (t, bt_f, ror_f) and
+        # milestone markers (t, bt_f, label). Drawn once CHARGE is set.
+        self._target: list[tuple[float, float, float | None]] = []
+        self._target_marks: list[tuple[float, float, str]] = []
 
         # Inner plot area (inset from the widget rect for labels/axes)
         self._margin_left = 36
@@ -181,6 +186,26 @@ class GraphWidget:
         """True if a reference profile is loaded."""
         return bool(self._ref_traces)
 
+    def set_target(
+        self,
+        curve: list[tuple[float, float, float | None]],
+        marks: list[tuple[float, float, str]] | None = None,
+    ) -> None:
+        """Show a planned curve (times relative to CHARGE) behind the live data.
+
+        A None RoR (e.g. through the charge dip) leaves a gap in the RoR line.
+        """
+        self._target = list(curve)
+        self._target_marks = list(marks or [])
+
+    def clear_target(self) -> None:
+        self._target = []
+        self._target_marks = []
+
+    @property
+    def has_target(self) -> bool:
+        return bool(self._target)
+
     def set_charge_time(self, t: float) -> None:
         """Set the CHARGE time so X-axis labels treat it as 0:00."""
         self._charge_time = t
@@ -232,6 +257,8 @@ class GraphWidget:
         self._draw_axis_labels(surface, elapsed)
         if self._ref_traces:
             self._draw_ref_traces(surface, elapsed)
+        if self._target and self._charge_time is not None:
+            self._draw_target(surface, elapsed)
         self._draw_traces(surface, elapsed)
         self._draw_bt_projection(surface, elapsed)
         self._draw_event_markers(surface, elapsed)
@@ -591,6 +618,36 @@ class GraphWidget:
                     draw_x1 = min(x1, clip_rect.right)
                     pygame.draw.line(surface, color, (draw_x0, y0), (draw_x1, y1))
 
+    def _draw_target(self, surface: pygame.Surface, elapsed: float) -> None:
+        """Dotted plan curves (BT and RoR) plus square milestone markers."""
+        p = self._plot
+        clip = p.inflate(-2, -2)
+        t0 = self._charge_time or 0.0
+        for idx, color, to_y in (
+            (1, theme.TARGET_BT, self._temp_to_y),
+            (2, theme.TARGET_ROR, self._ror_to_y),
+        ):
+            prev: tuple[int, int] | None = None
+            for i, pt in enumerate(self._target):
+                if pt[0] < 0 or pt[idx] is None:
+                    prev = None
+                    continue
+                xy = (self._t_to_x(t0 + pt[0], elapsed), to_y(pt[idx]))
+                # Dotted: draw 3 s on, 3 s off
+                if prev is not None and (i // 3) % 2 == 0:
+                    if clip.left <= prev[0] and xy[0] <= clip.right:
+                        pygame.draw.line(surface, color, prev, xy)
+                prev = xy
+        for t, bt, label in self._target_marks:
+            x = self._t_to_x(t0 + t, elapsed)
+            y = self._temp_to_y(bt)
+            if not (p.x <= x <= p.right and p.top <= y <= p.bottom):
+                continue
+            pygame.draw.rect(surface, theme.TARGET_BT, (x - 3, y - 3, 7, 7), 1)
+            lw = text_width(label, scale=1)
+            render_text(surface, label, max(p.x, min(p.right - lw, x - lw // 2)),
+                        min(p.bottom - 8, y + 7), theme.TARGET_BT, scale=1)
+
     def _draw_traces(self, surface: pygame.Surface, elapsed: float) -> None:
         p = self._plot
         clip_rect = p.inflate(-2, -2)
@@ -665,6 +722,9 @@ class GraphWidget:
         if self._ref_traces:
             label = "REF"
             render_text(surface, label, x + 4, y, theme.REF_BT, scale=1)
+            x += text_width(label, 1) + 12
+        if self._target:
+            render_text(surface, "PLAN", x + 4, y, theme.TARGET_BT, scale=1)
 
 
 # ---------------------------------------------------------------------------
@@ -922,17 +982,27 @@ class ProfileBrowser:
     _VISIBLE_ROWS = 12  # how many rows visible at once (scrolls if more)
     _ROW_HEIGHT = 14     # pixels per row
 
-    def __init__(self, rect: tuple[int, int, int, int]) -> None:
+    def __init__(
+        self,
+        rect: tuple[int, int, int, int],
+        *,
+        title: str = "LOAD PROFILE",
+        footer: str = "UP/DN:NAV  ENTER:LOAD  L:CANCEL",
+        empty_text: str = "NO SAVED PROFILES",
+    ) -> None:
         self.rect = pygame.Rect(rect)
+        self.title = title
+        self.footer = footer
+        self.empty_text = empty_text
         self._profiles: list[str] = []
         self._cursor: int = 0
         self._scroll_offset: int = 0
 
-    def set_profiles(self, profiles: list[str]) -> None:
-        """Set the list of available profile names."""
+    def set_profiles(self, profiles: list[str], cursor: int = 0) -> None:
+        """Set the list of available profile names (and optionally the cursor)."""
         self._profiles = list(profiles)
-        self._cursor = 0
-        self._scroll_offset = 0
+        self._cursor = max(0, min(cursor, len(self._profiles) - 1))
+        self._scroll_offset = max(0, self._cursor - self._VISIBLE_ROWS + 1)
 
     @property
     def profiles(self) -> list[str]:
@@ -970,7 +1040,7 @@ class ProfileBrowser:
         pygame.draw.rect(surface, theme.TEXT, r, 2)
 
         # Title
-        title = "LOAD PROFILE"
+        title = self.title
         tw = text_width(title, scale=2)
         tx = r.x + (r.width - tw) // 2
         ty = r.y + 6
@@ -983,7 +1053,7 @@ class ProfileBrowser:
         list_y = div_y + 6
 
         if not self._profiles:
-            msg = "NO SAVED PROFILES"
+            msg = self.empty_text
             mw = text_width(msg, scale=1)
             render_text(
                 surface, msg,
@@ -1018,7 +1088,7 @@ class ProfileBrowser:
                 render_text(surface, "v", r.right - 16, bottom_y - 10, theme.TEXT_DIM, scale=1)
 
         # Footer
-        footer = "UP/DN:NAV  ENTER:LOAD  L:CANCEL"
+        footer = self.footer
         fw = text_width(footer, scale=1)
         fy = r.bottom - text_height(1) - 6
         render_text(surface, footer, r.x + (r.width - fw) // 2, fy, theme.TEXT_DIM, scale=1)
