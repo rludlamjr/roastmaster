@@ -11,7 +11,7 @@ import urllib.request
 
 import pytest
 
-from roastmaster.app import RoastSession, crt_text, cycle_coffee, picker_entries, save_session
+from roastmaster.app import RoastSession, crt_text, picker_entries, save_session
 from roastmaster.engine.events import EventType
 from roastmaster.export.mailer import EmailConfig, build_message
 from roastmaster.export.report import (
@@ -151,12 +151,6 @@ class TestEmail:
 class TestSessionHelpers:
     def test_crt_text(self):
         assert crt_text("Reserva del Pátron") == "RESERVA DEL PATRON"
-
-    def test_cycle_coffee(self):
-        choices = ["", "RDP", "Kenya"]
-        assert cycle_coffee(choices, "", 1) == "RDP"
-        assert cycle_coffee(choices, "rdp", 1) == "Kenya"
-        assert cycle_coffee(choices, "", -1) == "Kenya"
 
     def test_picker_entries_end_with_blank(self, tmp_path):
         from roastmaster.profiles.coffees import CoffeeLibrary

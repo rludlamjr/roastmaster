@@ -75,7 +75,8 @@ def _detect_chip() -> str:
 
 _CHIP = _detect_chip()
 _DEBOUNCE_US = 50_000  # 50 ms kernel debounce (buttons/toggles)
-_ENC_DEBOUNCE_US = 5_000  # 5 ms for rotary encoder (needs fast response)
+_ENC_DEBOUNCE_US = 1_000  # 1 ms on CLK/DT; the quadrature decoder rejects the rest
+_ENC_PUSH_LOCKOUT_S = 0.35  # ignore encoder pushes this soon after the last one
 
 # ---------------------------------------------------------------------------
 # Pin assignments — matches stripboard-interface-board-inputs-only.md
@@ -159,6 +160,44 @@ def _adc_to_percent(raw: int) -> int:
     return int(round(raw * 100 / 1023))
 
 
+class QuadratureDecoder:
+    """Turns raw CLK/DT levels into one step per encoder detent.
+
+    Contact bounce produces impossible jumps (both lines changing at once)
+    or quick back-and-forth flips; the transition table ignores the former
+    and the latter cancel out. A step is only reported when the encoder
+    settles back on its rest state (both lines high), so a detent counts
+    once no matter how much it bounced on the way.
+
+    Direction matches the previous decoder: DT leading CLK = +1 (NAV_UP),
+    CLK leading DT = -1 (NAV_DOWN).
+    """
+
+    # (previous state, new state) -> movement; state = clk << 1 | dt
+    _MOVES = {
+        (3, 2): 1, (2, 0): 1, (0, 1): 1, (1, 3): 1,     # DT leads
+        (3, 1): -1, (1, 0): -1, (0, 2): -1, (2, 3): -1,  # CLK leads
+    }
+
+    def __init__(self, clk: int = 1, dt: int = 1) -> None:
+        self._state = (clk << 1) | dt
+        self._acc = 0
+
+    def update(self, clk: int, dt: int) -> int:
+        """Feed the current line levels; returns +1, -1 or 0 (no full step yet)."""
+        new = (clk << 1) | dt
+        if new == self._state:
+            return 0
+        self._acc += self._MOVES.get((self._state, new), 0)
+        self._state = new
+        if new != 3:
+            return 0
+        # Back at rest: a detent is 4 transitions; accept 2+ in case edges were missed
+        step = 1 if self._acc >= 2 else (-1 if self._acc <= -2 else 0)
+        self._acc = 0
+        return step
+
+
 # ---------------------------------------------------------------------------
 # GPIOInput class
 # ---------------------------------------------------------------------------
@@ -181,6 +220,9 @@ class GPIOInput:
         self._toggle_request: object | None = None
         self._button_request: object | None = None
         self._encoder_request: object | None = None
+        self._encoder = QuadratureDecoder()
+        self._enc_levels = {"clk": 1, "dt": 1}
+        self._last_push = 0.0
         self._spi: object | None = None
         self._state = InputState()
         self._last_pot_read = 0.0
@@ -274,9 +316,8 @@ class GPIOInput:
     def _setup_encoder(self) -> None:
         """Configure rotary encoder lines.
 
-        CLK: falling-edge detection for quadrature decoding.
-        DT:  input only (read as level when CLK fires).
-        SW:  falling-edge detection for push button.
+        CLK, DT: both edges on both lines, fed to a quadrature decoder.
+        SW:      falling-edge detection for push button.
         """
         from datetime import timedelta
 
@@ -286,14 +327,15 @@ class GPIOInput:
             config={
                 _ENC_CLK_PIN: gpiod.LineSettings(
                     direction=Direction.INPUT,
-                    edge_detection=Edge.FALLING,
+                    edge_detection=Edge.BOTH,
                     bias=Bias.PULL_UP,
                     debounce_period=timedelta(microseconds=_ENC_DEBOUNCE_US),
                 ),
                 _ENC_DT_PIN: gpiod.LineSettings(
                     direction=Direction.INPUT,
-                    edge_detection=Edge.NONE,
+                    edge_detection=Edge.BOTH,
                     bias=Bias.PULL_UP,
+                    debounce_period=timedelta(microseconds=_ENC_DEBOUNCE_US),
                 ),
                 _ENC_SW_PIN: gpiod.LineSettings(
                     direction=Direction.INPUT,
@@ -304,6 +346,10 @@ class GPIOInput:
                 ),
             },
         )
+        clk = 1 if self._encoder_request.get_value(_ENC_CLK_PIN) == Value.ACTIVE else 0
+        dt = 1 if self._encoder_request.get_value(_ENC_DT_PIN) == Value.ACTIVE else 0
+        self._enc_levels = {"clk": clk, "dt": dt}
+        self._encoder = QuadratureDecoder(clk, dt)
 
     def _init_mcp3008(self) -> None:
         """Try to initialise MCP3008 SPI ADC. Non-fatal if absent."""
@@ -389,10 +435,11 @@ class GPIOInput:
     def _poll_encoder(self, events: list[InputEvent]) -> None:
         """Read rotary encoder events.
 
-        CLK edge (both rising and falling) + DT level → rotation direction.
-        On CLK falling edge: DT HIGH = CW, DT LOW = CCW.
-        On CLK rising edge:  DT LOW = CW, DT HIGH = CCW (inverted).
-        SW falling edge → profile load / confirm.
+        Every CLK/DT edge updates that line's level (taken from the edge
+        type, so queued edges replay in order) and feeds the quadrature
+        decoder, which emits one NAV_UP / NAV_DOWN per detent.
+        SW falling edge → PROFILE_LOAD (push), with a short lockout so a
+        bouncing push can't select and then immediately reopen a list.
         """
         if self._encoder_request is None:
             return
@@ -401,17 +448,20 @@ class GPIOInput:
                 return
             for edge in self._encoder_request.read_edge_events():
                 pin = edge.line_offset
-
-                if pin == _ENC_CLK_PIN:
-                    # On CLK falling edge, check DT level for direction
-                    dt_val = self._encoder_request.get_value(_ENC_DT_PIN)
-                    if dt_val == Value.INACTIVE:
+                if pin in (_ENC_CLK_PIN, _ENC_DT_PIN):
+                    kind = getattr(edge.event_type, "name", str(edge.event_type))
+                    level = 1 if "RISING" in kind.upper() else 0
+                    self._enc_levels["clk" if pin == _ENC_CLK_PIN else "dt"] = level
+                    step = self._encoder.update(self._enc_levels["clk"], self._enc_levels["dt"])
+                    if step > 0:
                         events.append(InputEvent.NAV_UP)
-                    else:
+                    elif step < 0:
                         events.append(InputEvent.NAV_DOWN)
-
                 elif pin == _ENC_SW_PIN:
-                    events.append(InputEvent.PROFILE_LOAD)
+                    now = time.monotonic()
+                    if now - self._last_push >= _ENC_PUSH_LOCKOUT_S:
+                        self._last_push = now
+                        events.append(InputEvent.PROFILE_LOAD)
         except Exception:
             logger.exception("Error reading encoder events")
 

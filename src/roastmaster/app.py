@@ -736,14 +736,6 @@ def picker_entries(library: CoffeeLibrary) -> tuple[list[Coffee | None], list[st
     return coffees, labels
 
 
-def cycle_coffee(choices: list[str], current: str, step: int) -> str:
-    if not choices:
-        return current
-    lowered = [c.lower() for c in choices]
-    idx = lowered.index(current.lower()) if current.lower() in lowered else 0
-    return choices[(idx + step) % len(choices)]
-
-
 def publish_live(live: LiveState, session: RoastSession) -> None:
     live.publish(
         LiveSnapshot(
@@ -1523,14 +1515,10 @@ def main(argv: list[str] | None = None) -> None:
                     if event == InputEvent.CHARGE:
                         renderer.hide_picker()  # keep the current selection
 
-                # Phase screen: encoder turns change coffee, push flips pages
+                # Phase screen: push flips pages. Turning the knob does nothing here,
+                # so a stray touch mid-roast can't switch the coffee plan; the
+                # picker (push on the graph) is the one place to change it.
                 if phase_view and event in (InputEvent.NAV_UP, InputEvent.NAV_DOWN):
-                    options = [c for c in coffee_lib.all()]
-                    ids = [""] + [c.id for c in options]
-                    step = 1 if event == InputEvent.NAV_DOWN else -1
-                    new_id = cycle_coffee(ids, session.coffee.id if session.coffee else "", step)
-                    message = apply_coffee(next((c for c in options if c.id == new_id), None))
-                    message_expire = session.fsm.elapsed + 2.0
                     continue
                 if phase_view and event == InputEvent.PROFILE_LOAD:
                     page = {"phases": "plan", "plan": "system"}.get(page, "phases")

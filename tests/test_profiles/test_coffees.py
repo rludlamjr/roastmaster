@@ -147,3 +147,30 @@ def test_web_coffee_pages(tmp_path):
         assert live.drain_meta()["coffee_id"] == "t"
     finally:
         srv.stop()
+
+
+def test_web_reassigns_roast_to_another_plan(tmp_path):
+    from roastmaster.profiles.manager import ProfileManager
+
+    lib = CoffeeLibrary(tmp_path / "coffees")
+    right = Coffee(id="brazil", name="Brazil Oberon", plan=RoastPlan(fc_s=440, drop_s=570))
+    lib.save(Coffee(id="limu", name="Limu G2"))
+    lib.save(right)
+    pm = ProfileManager(tmp_path / "p")
+    roast = make_roast()
+    roast.coffee, roast.coffee_id = "Limu G2", "limu"
+    roast.plan = lib.get("limu").snapshot()
+    pm.save_roast(roast)
+    srv = RoastWebServer(pm, LiveState(), host="127.0.0.1", port=0, coffees=lib)
+    srv.start()
+    try:
+        data = urllib.parse.urlencode({"coffee_id": "brazil", "coffee": "Limu G2",
+                                       "weight_g": "170", "tasting_notes": "nutty"}).encode()
+        url = f"http://127.0.0.1:{srv.port}/roast/{roast.roast_id}"
+        urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=5)
+    finally:
+        srv.stop()
+    fixed = pm.load(roast.roast_id)
+    assert fixed.coffee_id == "brazil" and fixed.coffee == "Brazil Oberon"
+    assert fixed.plan["plan"]["fc_s"] == 440
+    assert fixed.tasting_notes == "nutty"

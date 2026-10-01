@@ -334,6 +334,11 @@ setInterval(tick, 3000);
         rating = "" if p.rating is None else str(p.rating)
         roasted = "" if p.roasted_weight_g is None else f"{p.roasted_weight_g:g}"
         msg = f"<p class=warn>{esc(message)}</p>" if message else ""
+        plan_opts = "<option value=''>(no plan)</option>" + "".join(
+            f"<option value='{esc(c.id)}'{' selected' if c.id == p.coffee_id else ''}>"
+            f"{esc(c.name)}</option>"
+            for c in self.coffees.all()
+        )
         body = f"""
 <p><a href="/">&larr; All roasts</a></p>
 <h1>{esc(p.coffee or 'Roast')} &middot; {esc(p.roast_date)}</h1>
@@ -344,6 +349,8 @@ setInterval(tick, 3000);
 <h2>Findings</h2>{findings_html(a)}
 <h2>Notes &amp; cup</h2>
 <form method="post" action="/roast/{esc(p.roast_id)}">
+<label>Coffee plan (change it if the wrong coffee was picked; uses that plan's current
+version)</label><select name="coffee_id">{plan_opts}</select>
 <div class="grid">
 <div><label>Coffee</label><input name="coffee" value="{esc(p.coffee)}"></div>
 <div><label>Green weight (g)</label><input name="weight_g" inputmode="decimal"
@@ -511,6 +518,17 @@ tune the plan) &middot; <a href="/coffee/{esc(c.id)}.json">Plan file</a></p>
             return self._not_found()
         f = self._form()
         p.coffee = f.get("coffee", p.coffee).strip()[:80]
+        plan_changed = False
+        cid = f.get("coffee_id", p.coffee_id).strip()
+        if cid != p.coffee_id:
+            coffee = self.coffees.get(cid) if cid else None
+            if cid == "" or coffee is not None:
+                # Reassign the roast: its coffee, id and the plan it is judged against
+                plan_changed = True
+                p.coffee_id = coffee.id if coffee else ""
+                p.plan = coffee.snapshot() if coffee else {}
+                if coffee is not None:
+                    p.coffee = coffee.name
         p.weight_g = _parse_float(f.get("weight_g", "")) or 0.0
         p.roasted_weight_g = _parse_float(f.get("roasted_weight_g", ""))
         p.rating = _parse_rating(f.get("rating", ""))
@@ -520,7 +538,11 @@ tune the plan) &middot; <a href="/coffee/{esc(c.id)}.json">Plan file</a></p>
         self.profiles.save(p, filename=p.roast_id)
         # Keep the roast loop's copy in step if this is the roast in progress
         if self.live.snapshot().roast_id == p.roast_id:
-            self.live.submit_meta(coffee=p.coffee, weight_g=p.weight_g, notes=p.notes)
+            meta: dict[str, object] = {"coffee": p.coffee, "weight_g": p.weight_g,
+                                       "notes": p.notes}
+            if plan_changed:
+                meta["coffee_id"] = p.coffee_id
+            self.live.submit_meta(**meta)
         self._redirect(f"/roast/{p.roast_id}")
 
     def _post_email(self, roast_id: str) -> None:

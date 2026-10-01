@@ -260,7 +260,7 @@ class Renderer:
                 marks.append((t, at[0], label))
         # RoR before the turning point is just the charge dip — don't draw it
         curve = [(t, bt, ror if t >= plan.tp_s else None) for t, bt, ror in plan.curve]
-        self._graph.set_target(curve, marks)
+        self._graph.set_target(curve, marks, label=f"PLAN {_crt(plan.label)}".strip())
 
     def push_data(self, data: dict) -> None:
         """Feed a new data sample into the graph traces.
@@ -479,7 +479,7 @@ class Renderer:
         render_text(surface, name, name_x, y, theme.TEXT if coffee else theme.GREEN_DIM, scale=2)
         y += text_height(2) + 8
 
-        footer = "KNOB:COFFEE  PUSH:NEXT PAGE"
+        footer = "PUSH:NEXT PAGE"
         fy = rect.bottom - pad - text_height(1)
         fw = text_width(footer, scale=1)
         render_text(surface, footer, rect.x + (rect.width - fw) // 2, fy, theme.GREEN_DIM, scale=1)
@@ -601,7 +601,7 @@ class Renderer:
         pygame.draw.rect(surface, theme.GREEN_DIM, rect, 1)
         pad = 8
         x0, w, y = rect.x + pad, rect.width - pad * 2, rect.y + pad
-        footer = "KNOB:COFFEE  PUSH:NEXT PAGE"
+        footer = "PUSH:NEXT PAGE"
         fy = rect.bottom - pad - text_height(1)
         render_text(surface, footer, rect.x + (rect.width - text_width(footer, 1)) // 2, fy,
                     theme.GREEN_DIM, scale=1)

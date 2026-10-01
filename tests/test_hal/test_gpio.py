@@ -187,3 +187,43 @@ class TestHybridInputClose:
 
         hybrid = HybridInput(keyboard=keyboard, gpio=gpio)
         hybrid.close()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Quadrature decoder (rotary encoder)
+# ---------------------------------------------------------------------------
+
+from roastmaster.hal.gpio import QuadratureDecoder  # noqa: E402
+
+# (clk, dt) states for one detent in each direction, starting and ending at rest
+_UP = [(1, 0), (0, 0), (0, 1), (1, 1)]    # DT leads
+_DOWN = [(0, 1), (0, 0), (1, 0), (1, 1)]  # CLK leads
+
+
+def _feed(seq):
+    dec = QuadratureDecoder()
+    return [s for s in (dec.update(c, d) for c, d in seq) if s]
+
+
+class TestQuadratureDecoder:
+    def test_one_step_per_detent(self):
+        assert _feed(_UP) == [1]
+        assert _feed(_DOWN) == [-1]
+        assert _feed(_UP * 3 + _DOWN * 2) == [1, 1, 1, -1, -1]
+
+    def test_contact_bounce_counts_once(self):
+        # CLK chatters on its first edge, DT chatters on its last
+        bouncy = [(1, 0), (1, 1), (1, 0), (1, 1), (1, 0), (0, 0), (0, 1), (0, 0), (0, 1), (1, 1)]
+        assert _feed(bouncy) == [1]
+
+    def test_partial_turn_that_springs_back_counts_nothing(self):
+        assert _feed([(1, 0), (0, 0), (1, 0), (1, 1)]) == []
+
+    def test_missed_edge_still_counts(self):
+        assert _feed([(1, 0), (0, 0), (1, 1)]) == [1]  # (0,1) edge lost
+
+    def test_impossible_jump_ignored(self):
+        assert _feed([(0, 0), (1, 1)]) == []
+
+    def test_repeated_levels_are_harmless(self):
+        assert _feed([(1, 1), (1, 0), (1, 0), (0, 0), (0, 1), (0, 1), (1, 1)]) == [1]

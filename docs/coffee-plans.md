@@ -16,7 +16,8 @@ Plans live in `coffees/<id>.json` (committed to the repo).
 - **Phase screen** (DEBUG switch): a blue `PLAN` line with the target times, and
   `VS PLAN BT +2.1 ROR -0.8` live (after the roast: `FC +0:20 DROP -0:05`).
   Push the encoder to page PHASES → PLAN → SYSTEM. The PLAN page shows the milestones
-  and the how-to-fly-it steps. Turning the knob on these pages changes the coffee.
+  and the how-to-fly-it steps. Turning the knob on these pages does nothing, so a stray
+  touch mid-roast can't switch the plan; change coffee with the list (push on the graph).
 - Findings add `BT 5C BEHIND PLAN` (live) and `FC 0:40 LATE` / `DROP ... EARLY`.
 
 Each saved roast stores a snapshot of the plan version it was roasted against, so

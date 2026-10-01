@@ -16,7 +16,7 @@ What this adds (no hardware changes):
 |---|---|
 | DEBUG toggle switch | Main graph ⇄ **phase screen** |
 | Encoder push (graph) | Open the *WHICH COFFEE?* list (also shown at start-up and RESET) |
-| Encoder turn (phase screen) | Change the coffee plan for this roast |
+| Encoder turn (phase screen) | Nothing (so the plan can't change by accident mid-roast) |
 | Encoder push (phase screen) | Page: PHASES → PLAN → SYSTEM |
 | DROP | Marks drop **and saves the roast** |
 | SAVE | Saves again (includes the cooling tail) and emails it if set up |

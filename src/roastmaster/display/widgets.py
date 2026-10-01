@@ -119,6 +119,7 @@ class GraphWidget:
         # milestone markers (t, bt_f, label). Drawn once CHARGE is set.
         self._target: list[tuple[float, float, float | None]] = []
         self._target_marks: list[tuple[float, float, str]] = []
+        self._target_label = "PLAN"
 
         # Inner plot area (inset from the widget rect for labels/axes)
         self._margin_left = 36
@@ -190,6 +191,7 @@ class GraphWidget:
         self,
         curve: list[tuple[float, float, float | None]],
         marks: list[tuple[float, float, str]] | None = None,
+        label: str = "PLAN",
     ) -> None:
         """Show a planned curve (times relative to CHARGE) behind the live data.
 
@@ -197,6 +199,7 @@ class GraphWidget:
         """
         self._target = list(curve)
         self._target_marks = list(marks or [])
+        self._target_label = label
 
     def clear_target(self) -> None:
         self._target = []
@@ -724,7 +727,7 @@ class GraphWidget:
             render_text(surface, label, x + 4, y, theme.REF_BT, scale=1)
             x += text_width(label, 1) + 12
         if self._target:
-            render_text(surface, "PLAN", x + 4, y, theme.TARGET_BT, scale=1)
+            render_text(surface, self._target_label, x + 4, y, theme.TARGET_BT, scale=1)
 
 
 # ---------------------------------------------------------------------------
