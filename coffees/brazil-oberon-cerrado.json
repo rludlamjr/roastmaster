@@ -1,0 +1,67 @@
+{
+  "id": "brazil-oberon-cerrado",
+  "name": "Brazil Oberon, Cerrado",
+  "short": "OBERON BRAZIL",
+  "status": "active",
+  "version": 1,
+  "source_url": "https://coffeebeancorral.com/products/brazil-oberon-cerrado",
+  "origin": "Brazil, Cerrado (Oberon)",
+  "process": "Natural",
+  "altitude_m": null,
+  "variety": "Mundo Novo, Catuai, Bourbon",
+  "vendor_notes": "Chocolate, nutty, fruity aftertaste; light acidity, sweet, full body. Clean and balanced. Body 7/7, sweetness 6/7, brightness 4/7. Grown 900-1,250 m.",
+  "goal": "Medium roast: chocolate, nuts and heavy body",
+  "rationale": "Low-grown (900-1,250 m) natural Brazil: soft, low-density beans that take heat fast, crack a little lower and scorch or tip easily, with plenty of chaff. So it charges cooler (182 C) on a gentler burner, with air raised after dry end for chaff and smoke. The cup is about chocolate, nuts and body, so it goes to a medium roast: DTR ~23% and ~14 C after first crack, with a slow, steadily falling RoR through development to build sweetness without roastiness. FC 186 C is an estimate.",
+  "plan": {
+    "preheat_sv_c": 182,
+    "charge_bt_c": 182,
+    "tp_s": 42,
+    "tp_bt_c": 98,
+    "peak_s": 90,
+    "dry_end_s": 230,
+    "fc_s": 440,
+    "fc_bt_c": 186,
+    "drop_s": 570,
+    "drop_bt_c": 200,
+    "dev_ror_ratio": 0.45
+  },
+  "targets": {
+    "total_time_s": [
+      530,
+      610
+    ],
+    "dtr_pct": [
+      20,
+      25
+    ],
+    "dev_delta_c": [
+      12,
+      16
+    ],
+    "dev_time_s": [
+      110,
+      150
+    ],
+    "weight_loss_pct": [
+      14,
+      16.5
+    ]
+  },
+  "steps": [
+    "Preheat to 182 C, then hold steady 10+ min (BT/ET flat).",
+    "Charge 170 g at BT 182. Burner 68%, air 30, drum 90.",
+    "TP ~0:42 near 98 C. RoR peaks around 1:30.",
+    "Dry end 150 C (~3:50): burner 58%, air 40.",
+    "At 166 C (~5:17): burner 50%, air 50.",
+    "At 176 C (~6:16): burner 44%. RoR ~10 and falling.",
+    "FC ~7:20 at ~186 C: burner 40%, air 60. Then 36%.",
+    "Drop ~9:30 at ~200 C (14 C after FC)."
+  ],
+  "history": [
+    {
+      "version": 1,
+      "date": "2026-10-01",
+      "note": "Initial medium-roast plan for a friend, from the Coffee Bean Corral page and calibration from the 2026-09-29 roasts (TP ~0:40, Honduras FC 188.9 C)."
+    }
+  ]
+}

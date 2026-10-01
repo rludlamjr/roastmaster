@@ -72,6 +72,8 @@ When a plan changes, bump `version` and add a `history` entry saying why.
 | Ethiopia Limu G2 (washed, 1,900 m) | 195 °C | 0:42 | 3:50 | 7:15 @ 189 | 8:50 @ 198.5 | 17.9% | 9.5 |
 | Honduras 18 Rabbit yellow honey (1,400 m) | 185 °C | 0:42 | 3:45 | 7:00 @ 188 | 8:40 @ 198.5 | 19.2% | 10.5 |
 | Peru decaf Sol y Café (water process) | 180 °C | 0:42 | 3:55 | 5:45 @ 172 | 7:10 @ 182 | 19.8% | 10 |
+| Peru Finca La Esperanza (washed, medium roast) | 188 °C | 0:42 | 3:45 | 7:30 @ 188 | 9:40 @ 203 | 22.4% | 15 |
+| Brazil Oberon Cerrado (natural, medium roast) | 182 °C | 0:42 | 3:50 | 7:20 @ 186 | 9:30 @ 200 | 22.8% | 14 |
 
 v2 comes from the first real roasts on 2026-09-29. The turning point on this drum is about
 0:40, not 1:00. First crack showed at 188.9 °C for the Honduras and 172 °C for the decaf;
