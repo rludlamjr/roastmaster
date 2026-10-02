@@ -3,7 +3,7 @@
   "name": "Peru Organic Decaf Sol y Cafe, Cajamarca",
   "short": "PERU DECAF",
   "status": "active",
-  "version": 2,
+  "version": 3,
   "source_url": "https://coffeebeancorral.com/collections/peruvian-unroasted-coffee-beans/products/peru-organic-decaf-sol-y-cafe-cajamarca",
   "origin": "Peru, Cajamarca (Coop Sol y Cafe)",
   "process": "Washed, water-process decaf",
@@ -13,16 +13,16 @@
   "goal": "Sweet, clean light-medium roast for espresso",
   "rationale": "Water-process decaf beans are already brownish, drier and more porous. They take up heat quickly, run through first crack at a slightly lower temperature, and crack quietly. Colour tells you little, so go by time and temperature. They also scorch and bake easily, so this plan uses the coolest charge (180 C) and gentler burner steps. Very light decaf tends to taste thin and sour as espresso, so drop ~9-10 C after FC (DTR ~18-19%) for caramel/cocoa sweetness while keeping the citrus. First crack temperature is the biggest unknown here: mark the first pops carefully.",
   "plan": {
-    "preheat_sv_c": 180,
-    "charge_bt_c": 180,
-    "tp_s": 42,
-    "tp_bt_c": 95,
-    "peak_s": 90,
-    "dry_end_s": 235,
-    "fc_s": 345,
-    "fc_bt_c": 172,
-    "drop_s": 430,
-    "drop_bt_c": 182,
+    "preheat_sv_c": 180.0,
+    "charge_bt_c": 180.0,
+    "tp_s": 36.0,
+    "tp_bt_c": 100.0,
+    "peak_s": 44.0,
+    "dry_end_s": 220.0,
+    "fc_s": 345.0,
+    "fc_bt_c": 172.0,
+    "drop_s": 430.0,
+    "drop_bt_c": 182.0,
     "dev_ror_ratio": 0.5
   },
   "targets": {
@@ -46,10 +46,10 @@
   "steps": [
     "Preheat to 180 C, then hold steady 10+ min (BT/ET flat).",
     "Charge 170 g at BT 180. Burner 65%, air 30, drum 90.",
-    "TP ~0:42 near 95 C. RoR peaks around 1:30.",
-    "Dry end 150 C (~3:55): burner 55%, air 40.",
-    "At 160 C (~4:40): burner 48%, air 50.",
-    "At 166 C (~5:10): burner 42%. RoR ~10 and falling.",
+    "TP ~0:36 near 100 C. RoR is highest here, then falls.",
+    "Dry end 150 C (~3:40): burner 55%, air 40.",
+    "At 160 C (~4:34): burner 48%, air 50.",
+    "At 166 C (~5:09): burner 42%. RoR ~10 and falling.",
     "FC ~5:45 at ~172 C: burner 38%, air 55. Then 33%.",
     "Drop ~7:10 at ~182 C (10 C after FC)."
   ],
@@ -63,6 +63,11 @@
       "version": 2,
       "date": "2026-09-29",
       "note": "Roast 1 (2026-09-29): 5-min preheat from cold at 100% burner, TP 0:37 and +16 C ahead by 2:00. FC came at 172 C (plan said 182): decaf cracks low on this probe. Dropped at 193 C, 21.7 C after FC (DTR 28%, a medium roast). v2: FC 172 at 5:45, drop 182 (+10 C), TP 0:42, steady preheat, charge burner 65%, earlier steps."
+    },
+    {
+      "version": 3,
+      "date": "2026-10-02",
+      "note": "Re-fitted the first 3-4 minutes to five real roasts (2026-09-29 to 10-02): on this roaster TP comes at ~0:35 at 108-116 C (not ~0:42 at ~100 C), RoR is highest right after TP and only falls, dry end lands ~3:35-3:55 and FC ~7:12-7:25 at 187-189 C. Earlier versions put the start 10-20 C too low, which invited cutting heat early and a hot finish. FC temperature, roast level and development are unchanged."
     }
   ]
 }
