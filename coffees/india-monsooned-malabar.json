@@ -1,0 +1,67 @@
+{
+  "id": "india-monsooned-malabar",
+  "name": "India Monsooned Malabar AA, Karnataka",
+  "short": "MONSOON MALABAR",
+  "status": "active",
+  "version": 1,
+  "source_url": "https://coffeebeancorral.com/products/indian-monsooned-malabar",
+  "origin": "India, Karnataka (west coast)",
+  "process": "Natural, monsooned 12-16 weeks",
+  "altitude_m": 1150,
+  "variety": "Kents, S.795, Catimor, Selection 9",
+  "vendor_notes": "Spicy, earthy, smoky, sweet tobacco; creamy body, medium acidity. Beans swell to nearly twice their size during monsooning.",
+  "goal": "Medium roast: sweet spice and tobacco with a creamy body",
+  "rationale": "Monsooning swells the beans to almost twice their size, so they are very light and porous: they take heat fast, scorch and tip easily, shed lots of chaff, and first crack comes early, quiet and muddled. So the charge is the coolest of all the plans (175 C), the peak RoR is gentle (~19 C/min), and first crack is expected around 182 C. A medium finish (DTR ~22%, ~13 C after FC) rounds out the spice and body; lighter tastes grassy, darker goes ashy. Air goes high after dry end for the chaff.",
+  "plan": {
+    "preheat_sv_c": 175,
+    "charge_bt_c": 175,
+    "tp_s": 42,
+    "tp_bt_c": 100,
+    "peak_s": 105,
+    "dry_end_s": 255,
+    "fc_s": 425,
+    "fc_bt_c": 182,
+    "drop_s": 545,
+    "drop_bt_c": 195,
+    "dev_ror_ratio": 0.45
+  },
+  "targets": {
+    "total_time_s": [
+      510,
+      590
+    ],
+    "dtr_pct": [
+      20,
+      24
+    ],
+    "dev_delta_c": [
+      11,
+      15
+    ],
+    "dev_time_s": [
+      100,
+      140
+    ],
+    "weight_loss_pct": [
+      14,
+      16.5
+    ]
+  },
+  "steps": [
+    "Preheat to 175 C, then hold steady 10+ min (BT/ET flat).",
+    "Charge 170 g at BT 175. Burner 62%, air 30, drum 90.",
+    "TP ~0:42 near 100 C. RoR peaks around 1:45.",
+    "Dry end 150 C (~4:15): burner 54%, air 40.",
+    "At 162 C (~5:12): burner 47%, air 50.",
+    "At 172 C (~6:04): burner 42%. RoR ~10 and falling.",
+    "FC ~7:05 at ~182 C (quiet): burner 38%, air 60. Then 34%.",
+    "Drop ~9:05 at ~195 C (13 C after FC)."
+  ],
+  "history": [
+    {
+      "version": 1,
+      "date": "2026-10-02",
+      "note": "Initial plan (for a family member) from the Coffee Bean Corral page and the 2026-09-29 calibration: TP ~0:40, Honduras FC 188.9 C, burner steps ~2 min before FC."
+    }
+  ]
+}

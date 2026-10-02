@@ -75,6 +75,9 @@ When a plan changes, bump `version` and add a `history` entry saying why.
 | Peru decaf Sol y Café (water process) | 180 °C | 0:42 | 3:55 | 5:45 @ 172 | 7:10 @ 182 | 19.8% | 10 |
 | Peru Finca La Esperanza (washed, medium roast) | 188 °C | 0:42 | 3:45 | 7:30 @ 188 | 9:40 @ 203 | 22.4% | 15 |
 | Brazil Oberon Cerrado (natural, medium roast) | 182 °C | 0:42 | 3:50 | 7:20 @ 186 | 9:30 @ 200 | 22.8% | 14 |
+| PNG Mile High A (washed, 1,600 m, light) | 190 °C | 0:42 | 3:50 | 7:15 @ 188 | 8:50 @ 197.5 | 17.9% | 9.5 |
+| India Monsooned Malabar AA (monsooned, medium) | 175 °C | 0:42 | 4:15 | 7:05 @ 182 | 9:05 @ 195 | 22.0% | 13 |
+| Sumatra Mandheling G1 (wet hulled, dark) | 190 °C | 0:42 | 4:05 | 7:30 @ 188 | 10:25 @ 211 | 28.0% | 23 |
 
 v2 comes from the first real roasts on 2026-09-29. The turning point on this drum is about
 0:40, not 1:00. First crack showed at 188.9 °C for the Honduras and 172 °C for the decaf;
