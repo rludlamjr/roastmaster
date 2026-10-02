@@ -76,7 +76,7 @@ When a plan changes, bump `version` and add a `history` entry saying why.
 | Peru Finca La Esperanza (washed, medium) | v2 | 188 °C | 0:36 @ 108 | 3:45 | 7:15 @ 188 | 9:20 @ 203 | 22.3% | 15 |
 | Brazil Oberon Cerrado (natural, medium) | v2 | 182 °C | 0:36 @ 108 | 3:40 | 7:20 @ 186 | 9:30 @ 200 | 22.8% | 14 |
 | India Monsooned Malabar AA (medium) | v2 | 175 °C | 0:38 @ 115 | 3:20 | 6:25 @ 182 | 8:15 @ 195 | 22.2% | 13 |
-| Sumatra Mandheling G1 (wet hulled, dark) | v2 | 190 °C | 0:36 @ 110 | 3:35 | 7:00 @ 188 | 9:45 @ 211 | 28.2% | 23 |
+| Sumatra Mandheling G1 (wet hulled, dark) | v3 | 190 °C | 0:36 @ 110 | 3:35 | 7:00 @ 183 | 10:00 @ 206 | 30.0% | 23 |
 | Peru decaf Sol y Café (water process) | v3 | 180 °C | 0:36 @ 100 | 3:40 | 5:45 @ 172 | 7:10 @ 182 | 19.8% | 10 |
 
 The opening is fitted to five real roasts (2026-09-29 to 10-02). On this roaster the turning

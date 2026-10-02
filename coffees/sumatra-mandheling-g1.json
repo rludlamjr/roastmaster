@@ -3,7 +3,7 @@
   "name": "Sumatra Mandheling G1, Aceh",
   "short": "MANDHELING G1",
   "status": "active",
-  "version": 2,
+  "version": 3,
   "source_url": "https://coffeebeancorral.com/products/sumatra-mandheling-grade-1",
   "origin": "Indonesia, Sumatra, Aceh (Mount Leuser slopes)",
   "process": "Wet hulled (giling basah)",
@@ -15,24 +15,24 @@
   "plan": {
     "preheat_sv_c": 190.0,
     "charge_bt_c": 190.0,
-    "tp_s": 36.0,
-    "tp_bt_c": 110.0,
-    "peak_s": 44.0,
-    "dry_end_s": 215.0,
-    "fc_s": 420.0,
-    "fc_bt_c": 188.0,
-    "drop_s": 585.0,
-    "drop_bt_c": 211.0,
-    "dev_ror_ratio": 0.6
+    "tp_s": 36,
+    "tp_bt_c": 110,
+    "peak_s": 44,
+    "dry_end_s": 215,
+    "fc_s": 420,
+    "fc_bt_c": 183,
+    "drop_s": 600,
+    "drop_bt_c": 206,
+    "dev_ror_ratio": 0.7
   },
   "targets": {
     "total_time_s": [
-      560,
-      630
+      570,
+      640
     ],
     "dtr_pct": [
-      25,
-      30
+      26,
+      31
     ],
     "dev_delta_c": [
       20,
@@ -56,10 +56,10 @@
     "Charge 170 g at BT 190. Burner 72%, air 30, drum 90.",
     "TP ~0:36 near 110 C. RoR is highest here, then falls.",
     "Dry end 150 C (~3:35): burner 62%, air 40.",
-    "At 168 C (~5:10): burner 54%, air 50.",
-    "At 178 C (~6:04): burner 50%. RoR ~10 and falling.",
-    "FC ~7:00 at ~188 C: burner 46%, air 60. Then 44%.",
-    "Drop ~9:45 at ~211 C, or at first 2nd-crack snaps (press SCS)."
+    "At 163 C (~4:53): burner 54%, air 50.",
+    "At 173 C (~5:55): burner 50%, air 60. RoR ~10 and falling.",
+    "FC ~7:00 at ~183 C: burner 46%. Keep air at 60, no big jumps.",
+    "Drop ~10:00 at ~206 C, or at first 2nd-crack snaps (press SCS)."
   ],
   "history": [
     {
@@ -71,6 +71,11 @@
       "version": 2,
       "date": "2026-10-02",
       "note": "Re-fitted the first 3-4 minutes to five real roasts (2026-09-29 to 10-02): on this roaster TP comes at ~0:35 at 108-116 C (not ~0:42 at ~100 C), RoR is highest right after TP and only falls, dry end lands ~3:35-3:55 and FC ~7:12-7:25 at 187-189 C. Earlier versions put the start 10-20 C too low, which invited cutting heat early and a hot finish. FC temperature, roast level and development are unchanged."
+    },
+    {
+      "version": 3,
+      "date": "2026-10-02",
+      "note": "Roast 2026-10-02_124819 tracked the v2 curve within +3-5 C early and +-1.5 C through Maillard, with FC at exactly 7:00 but at 183.2 C (wet-hulled cracks lower). Air jumped 66 -> 84% around 6:30 with the burner cut, RoR sagged to 5.6 after FC, then rose to 13 when heat came back (flicks 8:07-8:15); dropped 210.7 C, 27.5 C after FC. v3: FC 183 C, drop 206 C (23 C after FC) at 10:00, steadier development (RoR 9 -> 6.3), keep air at 60."
     }
   ]
 }

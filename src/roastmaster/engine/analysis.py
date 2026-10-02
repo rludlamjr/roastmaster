@@ -44,7 +44,7 @@ class Targets:
     dtr_pct: tuple[float, float] = (16.0, 22.0)
     dev_time_s: tuple[float, float] = (70.0, 120.0)
     dev_delta_c: tuple[float, float] = (8.0, 15.0)    # drop BT - FC BT
-    drying_pct: tuple[float, float] = (35.0, 50.0)
+    drying_pct: tuple[float, float] = (30.0, 45.0)  # real M1 roasts: ~33-43%
     ror_fc_c: tuple[float, float] = (6.0, 12.0)       # C/min at first crack
     ror_drop_c: tuple[float, float] = (2.5, 7.0)      # C/min at drop
     weight_loss_pct: tuple[float, float] = (12.0, 14.5)
@@ -589,8 +589,8 @@ def _evaluate(a: RoastAnalysis, tg: Targets) -> None:
         warn.append(Finding(
             "warn", "DTR HIGH: MUTED/ROASTY",
             f"Development time ratio {a.dtr_pct:.1f}% is above the {rng(tg.dtr_pct, '%')} "
-            "target for a light roast. Acidity and origin character get muted and roast "
-            "flavours creep in. Drop earlier.",
+            "target. Acidity and origin character get more muted and roast flavours creep "
+            "in. Drop earlier.",
         ))
 
     s = _classify(a.dev_time_s, tg.dev_time_s)
@@ -612,7 +612,7 @@ def _evaluate(a: RoastAnalysis, tg: Targets) -> None:
         warn.append(Finding(
             "warn", "DEV DT HIGH",
             f"BT rose {dev_delta_c:.1f} C after first crack (target "
-            f"{rng(tg.dev_delta_c, ' C')}). That's heading toward a medium roast.",
+            f"{rng(tg.dev_delta_c, ' C')}), so the roast went darker than planned.",
         ))
 
     # Drying share
