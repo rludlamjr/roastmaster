@@ -146,3 +146,21 @@ class TestEdgeCases:
         assert d["first_crack"]["bt_c"] == pytest.approx(183, abs=2)
         assert d["phases"][2]["name"] == "DEVELOPMENT"
         assert isinstance(d["findings"], list)
+
+
+class TestBogusTurningPoint:
+    """Regression: a TP event at charge time made dry end show as 0:01."""
+
+    def test_tp_event_at_charge_is_ignored(self):
+        p = make_roast()
+        charge = p.events[0]
+        p.events.append(ProfileEvent("TURNING_POINT", charge.elapsed, charge.temperature))
+        a = p.analyze()
+        assert a.turning_point.time_s == pytest.approx(65, abs=2)
+        assert a.dry_end.time_s > 200
+        assert f_to_c(a.dry_end.bt_f) == pytest.approx(150, abs=1)
+
+    def test_dry_end_needs_an_upward_crossing(self):
+        # Charge BT is above the dry-end threshold; that must not count as dry end
+        a = make_roast(charge_bt_c=200).analyze()
+        assert a.dry_end.time_s > a.turning_point.time_s + 60

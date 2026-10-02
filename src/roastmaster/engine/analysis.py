@@ -88,6 +88,10 @@ class PlanTargets:
 # Window (seconds) for the least-squares RoR used by the analysis.
 _ROR_SPAN_S = 30.0
 
+# A turning point is only accepted inside the charge dip
+_TP_MIN_S = 10.0
+_TP_MIN_DIP_F = 15.0
+
 
 # ---------------------------------------------------------------------------
 # Input protocols (ProfileSample / ProfileEvent / RoastEvent all satisfy these)
@@ -384,27 +388,38 @@ def analyze_roast(
     if drop is not None:
         result.drop = EventPoint(end_s, drop.temperature)
 
-    # Turning point: marked/auto-detected event, else the BT minimum in the first 3 min
+    # Turning point: marked/auto-detected event, else the BT minimum in the first 3 min.
+    # Either must sit in the charge dip (well below charge BT, not in the first
+    # seconds); older roasts may carry a bogus TP event at 0:00 from BT creeping
+    # up just after CHARGE, which is ignored here.
+    def plausible_tp(p: EventPoint | None) -> bool:
+        return (p is not None and p.time_s >= _TP_MIN_S
+                and p.bt_f <= charge.temperature - _TP_MIN_DIP_F)
+
     tp = rel_point("TURNING_POINT")
-    if tp is None:
+    if not plausible_tp(tp):
+        tp = None
         early = [p for p in points if p[0] <= 180.0]
         if early:
             t_min, bt_min = min(early, key=lambda p: p[1])
+            candidate = EventPoint(t_min, bt_min)
             # Only trust it once BT has clearly started rising again
-            if points[-1][1] > bt_min + 2.0 and t_min > 0:
-                tp = EventPoint(t_min, bt_min)
+            if points[-1][1] > bt_min + 2.0 and plausible_tp(candidate):
+                tp = candidate
     result.turning_point = tp
 
-    # Dry end: marked event, else first crossing of the threshold after TP
+    # Dry end: marked event, else BT crossing the threshold on the way up after TP
     dry_end = rel_point("DRY_END")
-    if dry_end is None:
+    if dry_end is None and tp is not None:
         threshold = c_to_f(targets.dry_end_c)
-        after = tp.time_s if tp is not None else 30.0
+        prev_bt = None
         for t, bt in points:
-            if t > after and bt >= threshold:
+            if t > tp.time_s and bt >= threshold and prev_bt is not None and prev_bt < threshold:
                 dry_end = EventPoint(t, bt)
                 result.dry_end_auto = True
                 break
+            if t >= tp.time_s:
+                prev_bt = bt
     result.dry_end = dry_end
 
     # RoR curve and derived values

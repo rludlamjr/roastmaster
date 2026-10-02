@@ -260,3 +260,15 @@ def test_all_event_types_can_be_manually_marked():
         em.mark_event(event_type, elapsed=float(i * 60), temperature=float(150 + i * 5))
     for event_type in EventType:
         assert em.get_event(event_type) is not None
+
+
+def test_bt_creeping_up_just_after_charge_is_not_a_turning_point():
+    """Steady preheat: BT rises for a few seconds after CHARGE before the beans pull it down."""
+    em = EventManager()
+    temps = [373.6, 374.0, 374.5, 375.0, 375.4]  # creeping up right after CHARGE (F)
+    temps += [370.0 - 12.0 * i for i in range(15)]  # the real charge dip
+    temps += [200.0 + 2.0 * i for i in range(8)]  # recovering after the turning point
+    detected = [r for i, t in enumerate(temps) if (r := em.update_bt(float(i), t)) is not None]
+    assert len(detected) == 1
+    assert detected[0].elapsed > 10.0
+    assert detected[0].temperature < 210.0

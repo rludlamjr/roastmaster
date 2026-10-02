@@ -22,6 +22,12 @@ class RoastEvent:
 
 # Number of consecutive rising readings required to confirm turning point
 _TP_CONFIRM_READINGS = 3
+# A real turning point follows the charge dip: BT must have fallen at least this
+# far below its post-charge high, and not in the first few seconds. Without this,
+# BT still creeping up for a moment after CHARGE (steady preheat, probe lag) was
+# taken as a turning point at 0:00.
+_TP_MIN_DIP_F = 15.0
+_TP_MIN_DELAY_S = 10.0
 
 
 class EventManager:
@@ -87,8 +93,15 @@ class EventManager:
                 self._rising_count = 0
 
         if self._rising_count >= _TP_CONFIRM_READINGS and self._tp_candidate is not None:
-            self._tp_detected = True
             tp_elapsed, tp_bt = self._tp_candidate
+            start_elapsed = self._bt_history[0][0]
+            peak_bt = max(t for _, t in self._bt_history)
+            if tp_bt > peak_bt - _TP_MIN_DIP_F or tp_elapsed - start_elapsed < _TP_MIN_DELAY_S:
+                # Not the charge dip yet (e.g. BT still creeping up just after CHARGE)
+                self._tp_candidate = None
+                self._rising_count = 0
+                return None
+            self._tp_detected = True
             return self.mark_event(EventType.TURNING_POINT, tp_elapsed, tp_bt)
 
         return None
