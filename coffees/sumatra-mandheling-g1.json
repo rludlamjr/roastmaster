@@ -15,14 +15,14 @@
   "plan": {
     "preheat_sv_c": 190.0,
     "charge_bt_c": 190.0,
-    "tp_s": 36,
-    "tp_bt_c": 110,
-    "peak_s": 44,
-    "dry_end_s": 215,
-    "fc_s": 420,
-    "fc_bt_c": 183,
-    "drop_s": 600,
-    "drop_bt_c": 206,
+    "tp_s": 36.0,
+    "tp_bt_c": 110.0,
+    "peak_s": 44.0,
+    "dry_end_s": 215.0,
+    "fc_s": 420.0,
+    "fc_bt_c": 183.0,
+    "drop_s": 600.0,
+    "drop_bt_c": 206.0,
     "dev_ror_ratio": 0.7
   },
   "targets": {
@@ -61,6 +61,12 @@
     "FC ~7:00 at ~183 C: burner 46%. Keep air at 60, no big jumps.",
     "Drop ~10:00 at ~206 C, or at first 2nd-crack snaps (press SCS)."
   ],
+  "rest": {
+    "min_days": 3,
+    "best_days": 5,
+    "max_days": 12,
+    "note": "Dark roasts degas and stale fast: start after 3 days, best around day 5, and use within about two weeks before oils and bitterness build."
+  },
   "history": [
     {
       "version": 1,

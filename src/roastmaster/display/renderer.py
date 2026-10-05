@@ -47,6 +47,7 @@ from roastmaster.display.widgets import (
     ProfileBrowser,
 )
 from roastmaster.engine.analysis import PlanTargets, RoastAnalysis, fmt_time
+from roastmaster.profiles.coffees import rest_text
 from roastmaster.profiles.schema import ProfileSample
 
 # ---------------------------------------------------------------------------
@@ -638,6 +639,11 @@ class Renderer:
             render_text(surface, val, cx + col_w - 12 - text_width(val, 2), cy, theme.TEXT,
                         scale=2)
         y += (len(cells) + 1) // 2 * row_h + 2
+        rest = rest_text(getattr(coffee, "rest", {}) or {})
+        if rest:
+            render_text(surface, _crt(f"REST BEFORE ESPRESSO: {rest}"), x0, y,
+                        theme.TARGET_BT, scale=1)
+            y += text_height(1) + 6
         pygame.draw.line(surface, theme.GREEN_DIM, (x0, y), (x0 + w, y))
         y += 6
         line_h = text_height(1) + 4

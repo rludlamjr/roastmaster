@@ -53,6 +53,12 @@
     "FC ~7:20 at ~188 C: burner 41%, air 50. Then 36%.",
     "Drop ~8:55 at ~197.5 C (9.5 C after FC)."
   ],
+  "rest": {
+    "min_days": 8,
+    "best_days": 12,
+    "max_days": 21,
+    "note": "Light washed coffee from 1,600 m: give it at least a week. Berry and citrus are clearest from about day 12."
+  },
   "history": [
     {
       "version": 1,

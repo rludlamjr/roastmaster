@@ -26,6 +26,7 @@ GET  /coffee/<id>.json        the plan file
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import re
@@ -52,7 +53,7 @@ from roastmaster.export.report import (
     svg_chart,
     text_summary,
 )
-from roastmaster.profiles.coffees import Coffee, CoffeeLibrary
+from roastmaster.profiles.coffees import Coffee, CoffeeLibrary, rest_text, rest_window
 from roastmaster.profiles.manager import ProfileManager
 from roastmaster.profiles.schema import RoastProfile
 from roastmaster.web.live import LiveState
@@ -243,12 +244,13 @@ class _Handler(BaseHTTPRequestHandler):
                 f"<td class=num>{esc(r['dev_delta_c'])}</td>"
                 f"<td class=num>{esc(r['weight_loss_pct'])}</td>"
                 f"<td class=num>{esc(r['rating'])}</td>"
-                f"<td>{'crash ' if r['crash'] else ''}{'flick' if r['flicks'] else ''}</td></tr>"
+                f"<td>{'crash ' if r['crash'] else ''}{'flick' if r['flicks'] else ''}</td>"
+                f"<td>{self._ready_cell(p)}</td></tr>"
             )
         table = (
             "<div class=scroll><table><tr><th>Date</th><th>Coffee</th><th>Time</th>"
             "<th>FC (C)</th><th>DTR%</th><th>Dev&Delta;C</th><th>Loss%</th><th>Rating</th>"
-            f"<th>RoR</th></tr>{''.join(rows)}</table></div>"
+            f"<th>RoR</th><th>Espresso</th></tr>{''.join(rows)}</table></div>"
             if rows else "<p class=muted>No saved roasts yet.</p>"
         )
         body = f"""
@@ -342,6 +344,7 @@ setInterval(tick, 3000);
         body = f"""
 <p><a href="/">&larr; All roasts</a></p>
 <h1>{esc(p.coffee or 'Roast')} &middot; {esc(p.roast_date)}</h1>
+{self._ready_html(p)}
 {msg}
 {phase_bar_html(a)}
 {plan_summary_html(a)}
@@ -373,6 +376,42 @@ version)</label><select name="coffee_id">{plan_opts}</select>
 <a href="/roast/{esc(p.roast_id)}.json">Raw (JSON)</a></p>
 """
         self._send(_page(f"Roast {p.roast_id}", body))
+
+    # -- resting ---------------------------------------------------------
+
+    def _rest_for(self, p: RoastProfile) -> dict:
+        """Rest guidance for a roast: its plan snapshot, else the coffee's current plan."""
+        rest = (p.plan or {}).get("rest") or {}
+        if not rest and p.coffee_id:
+            coffee = self.coffees.get(p.coffee_id)
+            rest = coffee.rest if coffee else {}
+        return rest
+
+    def _ready_cell(self, p: RoastProfile) -> str:
+        """Short 'when can I pull shots' status for the roast log."""
+        win = rest_window(self._rest_for(p), p.roast_date)
+        if win is None:
+            return ""
+        start, best, end = win
+        today = dt.date.today()
+        if today < start:
+            return f"from {start:%b %d}"
+        if today <= end:
+            return "<span class=good>ready</span>" + (
+                f" (best {best:%b %d})" if best and today < best else "")
+        return "<span class=muted>past best</span>"
+
+    def _ready_html(self, p: RoastProfile) -> str:
+        rest = self._rest_for(p)
+        win = rest_window(rest, p.roast_date)
+        if win is None:
+            return ""
+        start, best, end = win
+        best_txt = f", best around <b>{best:%a %b %d}</b>" if best else ""
+        note = rest.get("note", "")
+        note = f"<br><span class=muted>{esc(note)}</span>" if note else ""
+        return (f"<p>Rest before espresso: {esc(rest_text(rest))}. Ready from "
+                f"<b>{start:%a %b %d}</b>{best_txt}, at its best until {end:%a %b %d}.{note}</p>")
 
     # -- coffees ---------------------------------------------------------
 
@@ -443,6 +482,10 @@ the roaster straight away. Share the product link with Claude to develop a prope
             if roast_rows else "<p class=muted>Not roasted yet.</p>"
         )
         dtr = (pl.drop_s - pl.fc_s) / pl.drop_s * 100
+        rest_section = ""
+        if rest_text(c.rest):
+            rest_section = (f"<h2>Rest before espresso</h2><p><b>{esc(rest_text(c.rest))}</b>. "
+                            f"{esc(c.rest.get('note', ''))}</p>")
         body = f"""
 <h1>{esc(c.name)}{' <span class=warn>(draft plan)</span>' if c.status == 'draft' else ''}</h1>
 <p class=muted>{esc(c.origin)} &middot; {esc(c.process)}
@@ -462,6 +505,7 @@ the roaster straight away. Share the product link with Claude to develop a prope
     <th>Dev &Delta;T</th><td class=num>{pl.drop_bt_c - pl.fc_bt_c:.1f} C</td></tr>
 </table></div>
 <h2>Why</h2><p>{esc(c.rationale)}</p>
+{rest_section}
 <h2>How to fly it</h2><ol>{steps}</ol>
 <h2>Roasts of this coffee</h2>{roasts}
 <p><a href="/coffee/{esc(c.id)}.txt">Plan + all roasts as text</a> (paste this to Claude to

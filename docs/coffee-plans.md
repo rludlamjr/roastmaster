@@ -58,6 +58,34 @@ ranges (DTR, dev ΔT, total time...) for that coffee.
 
 When a plan changes, bump `version` and add a `history` entry saying why.
 
+## Resting before espresso
+
+Each plan has a `rest` section: how many days the beans need after roasting before they're
+good for espresso.
+
+```json
+"rest": {"min_days": 10, "best_days": 14, "max_days": 21,
+         "note": "Dense, light-roasted washed Ethiopian degasses slowly..."}
+```
+
+It shows on the PLAN page (`REST BEFORE ESPRESSO: 10-21 DAYS (BEST 14)`) and on the coffee's
+web page. Each roast's page turns it into dates ("Ready from Thu Oct 12, best around Mon Oct
+16"), and the roast log's **Espresso** column says *from Oct 12*, *ready* or *past best*. The
+rest is stored with each roast's plan snapshot, so changing it later doesn't rewrite old
+roasts. Lighter and denser roasts need longer; dark roasts, naturals and decaf are ready (and
+fade) sooner.
+
+| Coffee | Rest (days) | Best |
+|---|---|---|
+| Ethiopia Limu G2 | 10-21 | ~14 |
+| Honduras 18 Rabbit | 7-18 | ~10 |
+| PNG Mile High A | 8-21 | ~12 |
+| Peru Finca La Esperanza | 5-16 | ~8 |
+| Brazil Oberon Cerrado | 4-14 | ~7 |
+| India Monsooned Malabar | 5-18 | ~8 |
+| Sumatra Mandheling G1 | 3-12 | ~5 |
+| Peru decaf Sol y Café | 4-14 | ~7 |
+
 ## Adding a coffee (with Claude)
 
 1. Add it on the web page (or just send Claude the product link).

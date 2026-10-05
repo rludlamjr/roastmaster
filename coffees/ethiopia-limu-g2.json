@@ -53,6 +53,12 @@
     "FC ~7:20 at ~189 C: burner 42%, air 50. Then 37%.",
     "Drop ~8:55 at ~198.5 C (9.5 C after FC)."
   ],
+  "rest": {
+    "min_days": 10,
+    "best_days": 14,
+    "max_days": 21,
+    "note": "Dense, light-roasted washed Ethiopian degasses slowly. Before about day 10 shots run fast, foamy and sour; the lime and florals settle in around two weeks."
+  },
   "history": [
     {
       "version": 1,

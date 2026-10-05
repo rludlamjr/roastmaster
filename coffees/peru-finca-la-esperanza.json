@@ -57,6 +57,12 @@
     "FC ~7:15 at ~188 C: burner 42%, air 55. Then 38%.",
     "Drop ~9:20 at ~203 C (15 C after FC)."
   ],
+  "rest": {
+    "min_days": 5,
+    "best_days": 8,
+    "max_days": 16,
+    "note": "Medium roast degasses faster than a light one. Chocolate and malt are fullest around a week; past ~2.5 weeks it flattens."
+  },
   "history": [
     {
       "version": 1,

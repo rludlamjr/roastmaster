@@ -57,6 +57,12 @@
     "FC ~7:20 at ~186 C: burner 40%, air 60. Then 36%.",
     "Drop ~9:30 at ~200 C (14 C after FC)."
   ],
+  "rest": {
+    "min_days": 4,
+    "best_days": 7,
+    "max_days": 14,
+    "note": "Medium natural Brazil is approachable early. Body and chocolate peak around a week; use within two weeks for espresso."
+  },
   "history": [
     {
       "version": 1,

@@ -157,6 +157,14 @@ def text_summary(profile: RoastProfile, a: RoastAnalysis | None = None) -> str:
         "Findings:",
     ]
     lines += [f"  [{f.level.upper()}] {f.detail}" for f in a.findings] or ["  (none)"]
+    from roastmaster.profiles.coffees import rest_text, rest_window
+
+    rest = (profile.plan or {}).get("rest") or {}
+    win = rest_window(rest, profile.roast_date)
+    if win is not None:
+        start, best, end = win
+        lines += ["", f"Rest before espresso: {rest_text(rest)}. Ready {start:%a %b %d}"
+                      + (f", best ~{best:%a %b %d}" if best else "") + f", until {end:%a %b %d}."]
     if profile.rating is not None:
         lines += ["", f"Rating: {profile.rating}/10"]
     if profile.notes:

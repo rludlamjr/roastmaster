@@ -57,6 +57,12 @@
     "FC ~6:25 at ~182 C (quiet): burner 38%, air 60. Then 34%.",
     "Drop ~8:15 at ~195 C (13 C after FC)."
   ],
+  "rest": {
+    "min_days": 5,
+    "best_days": 8,
+    "max_days": 18,
+    "note": "Low acidity, so it is drinkable early, but a week's rest smooths the smoky edge and brings the sweet spice forward."
+  },
   "history": [
     {
       "version": 1,

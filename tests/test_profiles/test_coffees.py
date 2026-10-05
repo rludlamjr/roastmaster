@@ -15,6 +15,8 @@ from roastmaster.profiles.coffees import (
     Coffee,
     CoffeeLibrary,
     RoastPlan,
+    rest_text,
+    rest_window,
     ror_knots,
     target_curve,
 )
@@ -63,6 +65,10 @@ class TestShippedCoffees:
         lo, hi = coffee.analysis_targets().dtr_pct
         assert lo <= pt.dtr_pct <= hi
         assert coffee.steps and coffee.rationale
+        rest = coffee.rest
+        assert rest_text(rest), "plan needs rest guidance (min/best/max days)"
+        assert 1 <= rest["min_days"] <= rest["best_days"] <= rest["max_days"] <= 45
+        assert rest.get("note")
 
 
 class TestLibrary:
@@ -174,3 +180,50 @@ def test_web_reassigns_roast_to_another_plan(tmp_path):
     assert fixed.coffee_id == "brazil" and fixed.coffee == "Brazil Oberon"
     assert fixed.plan["plan"]["fc_s"] == 440
     assert fixed.tasting_notes == "nutty"
+
+
+class TestRest:
+    REST = {"min_days": 10, "best_days": 14, "max_days": 21, "note": "slow degassing"}
+
+    def test_text(self):
+        assert rest_text(self.REST) == "10-21 days (best ~14)"
+        assert rest_text({}) == ""
+
+    def test_window_from_roast_date(self):
+        import datetime as dt
+
+        start, best, end = rest_window(self.REST, "2026-10-02 12:48")
+        assert (start, best, end) == (dt.date(2026, 10, 12), dt.date(2026, 10, 16),
+                                      dt.date(2026, 10, 23))
+        assert rest_window(self.REST, "") is None
+        assert rest_window({}, "2026-10-02 12:48") is None
+
+    def test_snapshot_carries_rest(self):
+        c = Coffee(id="x", name="X", rest=dict(self.REST))
+        assert Coffee.from_snapshot(c.snapshot()).rest == self.REST
+
+
+def test_web_shows_ready_dates(tmp_path):
+    from roastmaster.profiles.manager import ProfileManager
+
+    lib = CoffeeLibrary(tmp_path / "coffees")
+    coffee = Coffee(id="limu", name="Limu", rest=dict(TestRest.REST))
+    lib.save(coffee)
+    pm = ProfileManager(tmp_path / "p")
+    roast = make_roast()
+    roast.coffee_id, roast.plan = "limu", coffee.snapshot()
+    pm.save_roast(roast)
+    srv = RoastWebServer(pm, LiveState(), host="127.0.0.1", port=0, coffees=lib)
+    srv.start()
+    try:
+        base = f"http://127.0.0.1:{srv.port}"
+        with urllib.request.urlopen(f"{base}/roast/{roast.roast_id}", timeout=5) as r:
+            page = r.read().decode()
+        assert "Rest before espresso: 10-21 days (best ~14)" in page
+        assert "Ready from <b>Thu Oct 08</b>" in page  # roast date 2026-09-28 + 10 days
+        with urllib.request.urlopen(f"{base}/", timeout=5) as r:
+            assert "Espresso" in r.read().decode()
+        with urllib.request.urlopen(f"{base}/coffee/limu", timeout=5) as r:
+            assert "Rest before espresso" in r.read().decode()
+    finally:
+        srv.stop()

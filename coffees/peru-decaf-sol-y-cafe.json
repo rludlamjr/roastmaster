@@ -53,6 +53,12 @@
     "FC ~5:45 at ~172 C: burner 38%, air 55. Then 33%.",
     "Drop ~7:10 at ~182 C (10 C after FC)."
   ],
+  "rest": {
+    "min_days": 4,
+    "best_days": 7,
+    "max_days": 14,
+    "note": "Water-process decaf is porous: it degasses and fades faster than regular coffee. Best around a week; use within two weeks."
+  },
   "history": [
     {
       "version": 1,

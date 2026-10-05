@@ -16,6 +16,7 @@ later") — the curve follows.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import re
@@ -161,6 +162,8 @@ class Coffee:
     # Overrides for analysis Targets, e.g. {"dtr_pct": [16, 20]}
     targets: dict = field(default_factory=dict)
     steps: list[str] = field(default_factory=list)   # how to fly the roast
+    # Resting before espresso: {"min_days", "best_days", "max_days", "note"}
+    rest: dict = field(default_factory=dict)
     history: list[dict] = field(default_factory=list)
 
     @property
@@ -186,6 +189,7 @@ class Coffee:
             plan=RoastPlan.from_dict(d.get("plan", {})),
             targets=dict(d.get("targets", {})),
             steps=list(d.get("steps", [])),
+            rest=dict(d.get("rest") or {}),
             history=list(d.get("history", [])),
         )
 
@@ -207,6 +211,7 @@ class Coffee:
             "plan": self.plan.to_dict(),
             "targets": self.targets,
             "steps": self.steps,
+            "rest": self.rest,
             "history": self.history,
         }
 
@@ -248,6 +253,7 @@ class Coffee:
             "name": self.name,
             "plan": self.plan.to_dict(),
             "targets": self.targets,
+            "rest": self.rest,
         }
 
     @classmethod
@@ -258,7 +264,34 @@ class Coffee:
             version=int(snap.get("version", 1)),
             plan=RoastPlan.from_dict(snap.get("plan", {})),
             targets=dict(snap.get("targets", {})),
+            rest=dict(snap.get("rest") or {}),
         )
+
+
+def rest_text(rest: dict) -> str:
+    """'10-21 days (best ~14)', or '' when the plan has no rest guidance."""
+    if not rest or "min_days" not in rest or "max_days" not in rest:
+        return ""
+    text = f"{rest['min_days']}-{rest['max_days']} days"
+    if rest.get("best_days") is not None:
+        text += f" (best ~{rest['best_days']})"
+    return text
+
+
+def rest_window(rest: dict, roast_date: str) -> tuple[dt.date, dt.date | None, dt.date] | None:
+    """(ready from, best, end of best window) for a roast made on roast_date ('YYYY-MM-DD ...')."""
+    if not rest_text(rest):
+        return None
+    try:
+        day = dt.date.fromisoformat(roast_date[:10])
+    except ValueError:
+        return None
+    best = rest.get("best_days")
+    return (
+        day + dt.timedelta(days=int(rest["min_days"])),
+        day + dt.timedelta(days=int(best)) if best is not None else None,
+        day + dt.timedelta(days=int(rest["max_days"])),
+    )
 
 
 def slugify(name: str) -> str:

@@ -53,6 +53,12 @@
     "FC ~7:15 at ~188 C: burner 40%, air 55. Then 35%.",
     "Drop ~8:55 at ~198.5 C (10.5 C after FC)."
   ],
+  "rest": {
+    "min_days": 7,
+    "best_days": 10,
+    "max_days": 18,
+    "note": "Light honey coffee: too fresh it is gassy and sharp. The honeysuckle sweetness opens up from about day 8."
+  },
   "history": [
     {
       "version": 1,
