@@ -1,0 +1,69 @@
+{
+  "id": "png-arokara-aa",
+  "name": "Papua New Guinea Arokara AA, Eastern Highlands",
+  "short": "PNG AROKARA AA",
+  "status": "active",
+  "version": 1,
+  "source_url": "https://coffeebeancorral.com/products/papua-new-guinea-aa-arokara",
+  "origin": "Papua New Guinea, Eastern Highlands (Arokara Cooperative, incl. Tairora and Gadsup)",
+  "process": "Washed, ~36 h fermentation, sun-dried 7-12 days",
+  "altitude_m": 1450,
+  "variety": "Typica, Bourbon, Arusha",
+  "vendor_notes": "Dark chocolate, ripe plum and earthy tones; creamy body and wine-like acidity. Aroma 7/7, balance 7/7, brightness 5/7, body 5/7, sweetness 3/7. Grown 1,300-1,600 m.",
+  "goal": "Light roast for espresso: plum and wine-like acidity over dark chocolate",
+  "rationale": "Same Arokara cooperative and varieties as the Mile High A, which cracked at 187.3 C at 7:18 on this roaster, so FC is planned at 187 C. AA beans are larger, so the charge is a little gentler (188 C) to heat them through evenly without tipping. The long 36-hour fermentation gives the plum and wine notes that a light roast keeps. Sweetness is rated low (3/7), so for espresso development is a touch longer than the Mile High: ~10.5 C after first crack, DTR ~19%. If shots are sour, add 10-15 s of development.",
+  "plan": {
+    "preheat_sv_c": 188,
+    "charge_bt_c": 188,
+    "tp_s": 38,
+    "tp_bt_c": 113,
+    "peak_s": 46,
+    "dry_end_s": 210,
+    "fc_s": 440,
+    "fc_bt_c": 187,
+    "drop_s": 545,
+    "drop_bt_c": 197.5,
+    "dev_ror_ratio": 0.5
+  },
+  "targets": {
+    "total_time_s": [
+      510,
+      580
+    ],
+    "dtr_pct": [
+      17,
+      21
+    ],
+    "dev_delta_c": [
+      9,
+      12.5
+    ],
+    "dev_time_s": [
+      90,
+      120
+    ]
+  },
+  "steps": [
+    "Preheat to 188 C, then hold steady 10+ min (BT/ET flat).",
+    "Charge 170 g at BT 188. Burner 72%, air 30, drum 90.",
+    "TP ~0:38 near 113 C. RoR is highest here, then falls.",
+    "Dry end 150 C (~3:30): burner 62%, air 40.",
+    "At 167 C (~5:07): burner 52%, air 45.",
+    "At 177 C (~6:10): burner 46%. RoR ~10 and falling.",
+    "FC ~7:20 at ~187 C: burner 41%, air 50. Then 36%.",
+    "Drop ~9:05 at ~197.5 C (10.5 C after FC)."
+  ],
+  "rest": {
+    "min_days": 8,
+    "best_days": 12,
+    "max_days": 21,
+    "note": "Light washed PNG: give it at least 8 days. The plum, wine and dark chocolate come together around day 12."
+  },
+  "history": [
+    {
+      "version": 1,
+      "date": "2026-10-08",
+      "note": "Initial light-roast espresso plan from the Coffee Bean Corral page, calibrated to the measured opening on this roaster and the Mile High A roast (same cooperative): FC 187.3 C at 7:18."
+    }
+  ]
+}

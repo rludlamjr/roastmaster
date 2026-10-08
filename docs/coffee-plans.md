@@ -80,6 +80,7 @@ fade) sooner.
 | Ethiopia Limu G2 | 10-21 | ~14 |
 | Honduras 18 Rabbit | 7-18 | ~10 |
 | PNG Mile High A | 8-21 | ~12 |
+| PNG Arokara AA | 8-21 | ~12 |
 | Peru Finca La Esperanza | 5-16 | ~8 |
 | Brazil Oberon Cerrado | 4-14 | ~7 |
 | India Monsooned Malabar | 5-18 | ~8 |
@@ -101,6 +102,7 @@ fade) sooner.
 | Ethiopia Limu G2 (washed, light) | v3 | 195 °C | 0:36 @ 110 | 3:30 | 7:20 @ 189 | 8:55 @ 198.5 | 17.8% | 9.5 |
 | Honduras 18 Rabbit yellow honey (light) | v3 | 185 °C | 0:36 @ 110 | 3:35 | 7:15 @ 188 | 8:55 @ 198.5 | 18.7% | 10.5 |
 | PNG Mile High A (washed, light) | v2 | 190 °C | 0:36 @ 112 | 3:25 | 7:20 @ 188 | 8:55 @ 197.5 | 17.8% | 9.5 |
+| PNG Arokara AA (washed, light, espresso) | v1 | 188 °C | 0:38 @ 113 | 3:30 | 7:20 @ 187 | 9:05 @ 197.5 | 19.3% | 10.5 |
 | Peru Finca La Esperanza (washed, medium) | v2 | 188 °C | 0:36 @ 108 | 3:45 | 7:15 @ 188 | 9:20 @ 203 | 22.3% | 15 |
 | Brazil Oberon Cerrado (natural, medium) | v2 | 182 °C | 0:36 @ 108 | 3:40 | 7:20 @ 186 | 9:30 @ 200 | 22.8% | 14 |
 | India Monsooned Malabar AA (medium) | v2 | 175 °C | 0:38 @ 115 | 3:20 | 6:25 @ 182 | 8:15 @ 195 | 22.2% | 13 |
