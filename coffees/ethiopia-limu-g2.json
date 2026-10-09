@@ -59,6 +59,38 @@
     "max_days": 21,
     "note": "Dense, light-roasted washed Ethiopian degasses slowly. Before about day 10 shots run fast, foamy and sour; the lime and florals settle in around two weeks."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 75,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 65,
+      "air": 40
+    },
+    {
+      "bt_c": 168,
+      "burner": 55,
+      "air": 45
+    },
+    {
+      "bt_c": 179,
+      "burner": 47
+    },
+    {
+      "at": "fc",
+      "burner": 42,
+      "air": 50
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 37
+    }
+  ],
   "history": [
     {
       "version": 1,

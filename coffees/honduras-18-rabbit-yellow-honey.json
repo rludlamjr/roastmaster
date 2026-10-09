@@ -59,6 +59,38 @@
     "max_days": 18,
     "note": "Light honey coffee: too fresh it is gassy and sharp. The honeysuckle sweetness opens up from about day 8."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 70,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 60,
+      "air": 40
+    },
+    {
+      "bt_c": 165,
+      "burner": 52,
+      "air": 50
+    },
+    {
+      "bt_c": 178,
+      "burner": 45
+    },
+    {
+      "at": "fc",
+      "burner": 40,
+      "air": 55
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 35
+    }
+  ],
   "history": [
     {
       "version": 1,

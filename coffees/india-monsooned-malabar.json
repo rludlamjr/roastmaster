@@ -63,6 +63,38 @@
     "max_days": 18,
     "note": "Low acidity, so it is drinkable early, but a week's rest smooths the smoky edge and brings the sweet spice forward."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 62,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 54,
+      "air": 40
+    },
+    {
+      "bt_c": 162,
+      "burner": 47,
+      "air": 50
+    },
+    {
+      "bt_c": 172,
+      "burner": 42
+    },
+    {
+      "at": "fc",
+      "burner": 38,
+      "air": 60
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 34
+    }
+  ],
   "history": [
     {
       "version": 1,

@@ -63,6 +63,38 @@
     "max_days": 14,
     "note": "Medium natural Brazil is approachable early. Body and chocolate peak around a week; use within two weeks for espresso."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 68,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 58,
+      "air": 40
+    },
+    {
+      "bt_c": 166,
+      "burner": 50,
+      "air": 50
+    },
+    {
+      "bt_c": 176,
+      "burner": 44
+    },
+    {
+      "at": "fc",
+      "burner": 40,
+      "air": 60
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 36
+    }
+  ],
   "history": [
     {
       "version": 1,

@@ -164,6 +164,8 @@ class Coffee:
     steps: list[str] = field(default_factory=list)   # how to fly the roast
     # Resting before espresso: {"min_days", "best_days", "max_days", "note"}
     rest: dict = field(default_factory=dict)
+    # Machine-readable knob schedule for live guidance (see engine/guidance.py)
+    controls: list[dict] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
 
     @property
@@ -190,6 +192,7 @@ class Coffee:
             targets=dict(d.get("targets", {})),
             steps=list(d.get("steps", [])),
             rest=dict(d.get("rest") or {}),
+            controls=list(d.get("controls") or []),
             history=list(d.get("history", [])),
         )
 
@@ -212,6 +215,7 @@ class Coffee:
             "targets": self.targets,
             "steps": self.steps,
             "rest": self.rest,
+            "controls": self.controls,
             "history": self.history,
         }
 
@@ -254,6 +258,7 @@ class Coffee:
             "plan": self.plan.to_dict(),
             "targets": self.targets,
             "rest": self.rest,
+            "controls": self.controls,
         }
 
     @classmethod
@@ -265,6 +270,7 @@ class Coffee:
             plan=RoastPlan.from_dict(snap.get("plan", {})),
             targets=dict(snap.get("targets", {})),
             rest=dict(snap.get("rest") or {}),
+            controls=list(snap.get("controls") or []),
         )
 
 

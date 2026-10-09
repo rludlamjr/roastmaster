@@ -47,6 +47,7 @@ from roastmaster.display.widgets import (
     ProfileBrowser,
 )
 from roastmaster.engine.analysis import PlanTargets, RoastAnalysis, fmt_time
+from roastmaster.engine.guidance import Guidance, coach_text
 from roastmaster.profiles.coffees import rest_text
 from roastmaster.profiles.schema import ProfileSample
 
@@ -343,9 +344,17 @@ class Renderer:
             if message:
                 self._draw_message_overlay(surface, message)
 
-        # Controls
-        self._control.update(burner, drum, air)
+        # Controls, with the plan's target positions when there is guidance
+        guidance = data.get("guidance")
+        if not isinstance(guidance, Guidance):
+            guidance = None
+        targets = None
+        if guidance is not None:
+            targets = {"BURN": guidance.burner, "DRUM": guidance.drum, "AIR": guidance.air}
+        self._control.update(burner, drum, air, targets=targets)
         self._control.draw(surface)
+        if data.get("view", "graph") == "graph" and not self._browser_visible:
+            self._draw_coach(surface, coach_text(guidance, burner, air))
 
         # Info panel
         heat_enabled = data.get("heat_enabled")
@@ -704,6 +713,21 @@ class Renderer:
             safe = self._truncate_to_width(line, max_content_w, scale=scale)
             render_text(surface, safe, rect.x + pad, ty, theme.TEXT_DIM, scale=scale)
             ty += line_h
+
+    def _draw_coach(self, surface: pygame.Surface, text: str) -> None:
+        """Burner/air hint in the lower right of the graph ("BURN TO 45% NOW")."""
+        if not text:
+            return
+        scale, pad = 2, 4
+        tw, th = text_width(text, scale=scale), text_height(scale)
+        x = SCREEN_WIDTH - _MARGIN - 40 - tw - pad * 2
+        y = _GRAPH_BOTTOM - 24 - th - pad * 2
+        box = pygame.Surface((tw + pad * 2, th + pad * 2))
+        box.set_alpha(200)
+        box.fill(theme.BG)
+        surface.blit(box, (x, y))
+        pygame.draw.rect(surface, theme.TARGET_BT, (x, y, tw + pad * 2, th + pad * 2), 1)
+        render_text(surface, text, x + pad, y + pad, theme.TARGET_BT, scale=scale)
 
     def _draw_message_overlay(self, surface: pygame.Surface, message: str) -> None:
         """Draw a brief flash message overlay on the graph area."""

@@ -911,12 +911,24 @@ class ControlIndicator:
     def __init__(self, rect: tuple[int, int, int, int]) -> None:
         self.rect = pygame.Rect(rect)
         self._values: dict[str, float] = {"BURN": 0.0, "DRUM": 0.0, "AIR": 0.0}
+        # Plan targets (0-100) shown as markers on the bars; None = no marker
+        self._targets: dict[str, float | None] = {"BURN": None, "DRUM": None, "AIR": None}
 
-    def update(self, burner: float, drum: float, air: float) -> None:
-        """Set control values in the range 0.0 – 100.0."""
+    def update(
+        self,
+        burner: float,
+        drum: float,
+        air: float,
+        targets: dict[str, float | None] | None = None,
+    ) -> None:
+        """Set control values (0.0 - 100.0) and optional plan targets per channel."""
         self._values["BURN"] = max(0.0, min(100.0, burner))
         self._values["DRUM"] = max(0.0, min(100.0, drum))
         self._values["AIR"] = max(0.0, min(100.0, air))
+        targets = targets or {}
+        for name in self._targets:
+            v = targets.get(name)
+            self._targets[name] = None if v is None else max(0.0, min(100.0, float(v)))
 
     def draw(self, surface: pygame.Surface) -> None:
         r = self.rect
@@ -956,6 +968,16 @@ class ControlIndicator:
             for tick_pct in (25, 50, 75):
                 tx = bx + int(bar_area_w * tick_pct / 100)
                 pygame.draw.line(surface, theme.GRID, (tx, by), (tx, by + bar_height - 1))
+
+            # Plan target: a marker above the bar and a line through it
+            target = self._targets.get(name)
+            if target is not None:
+                mx = bx + int(bar_area_w * target / 100.0)
+                pygame.draw.polygon(surface, theme.TARGET_BT,
+                                    [(mx - 3, by - 5), (mx + 3, by - 5), (mx, by - 1)])
+                bottom = by + bar_height - 1
+                for yy in range(by, by + bar_height, 3):  # dotted line through the bar
+                    pygame.draw.line(surface, theme.TARGET_BT, (mx, yy), (mx, min(yy + 1, bottom)))
 
             # Numeric value
             pct_str = f"{int(val)}%"

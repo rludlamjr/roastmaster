@@ -58,6 +58,45 @@ ranges (DTR, dev ΔT, total time...) for that coffee.
 
 When a plan changes, bump `version` and add a `history` entry saying why.
 
+## Live burner and air guidance
+
+Each plan has a `controls` list: the knob settings, keyed to bean temperature:
+
+```json
+"controls": [
+  {"at": "charge", "burner": 70, "air": 30, "drum": 90},
+  {"bt_c": 150, "burner": 60, "air": 40},
+  {"bt_c": 165, "burner": 52, "air": 50},
+  {"bt_c": 178, "burner": 45},
+  {"at": "fc", "burner": 40, "air": 55},
+  {"at": "fc", "after_s": 30, "burner": 35}
+]
+```
+
+While roasting, the BURN, DRUM and AIR bars show a **blue marker** where the knob should be,
+and the graph shows a hint in its lower right: `BURN TO 45% NOW` when you're off target, or
+`BURN 45% IN 0:15` when the next step is close. How it decides:
+
+- **Steps are keyed to BT**, so they adapt to running ahead or behind: if the roast is slow,
+  the 165 °C step simply comes later.
+- **It leads by 45 seconds**, the roaster's lag. A step is shown when BT, projected 45 s ahead
+  at the current RoR, reaches the step's temperature, so the change lands on time.
+- **It corrects from RoR.** From dry end on, actual RoR is compared with the plan's RoR at the
+  same bean temperature. Running hot lowers the burner target (about 3 points per °C/min);
+  running cold raises it. The correction is smoothed over ~25 s so it doesn't jump around.
+- **No extra heat near first crack.** Within 25 °C of planned first crack, and after it, the
+  correction can only lower the burner. After first crack it's gentler (2 points per °C/min,
+  at most 10 under the schedule), because earlier cuts are still landing.
+- The first-crack step is anticipated from the planned FC temperature; steps timed after
+  first crack (`after_s`) wait for the FCS press.
+
+Replaying the 2026-10-08 Rabbit roast through it: the guide asked for ~43% at 6:00 (172 °C),
+about 1:40 before first crack, while the burner was at 57-60%. That was the late roll-back
+that made development run hot.
+
+Rules for a schedule (tests enforce them for shipped plans): start with an `at: charge` step,
+BT steps in rising order starting at 150 °C, and burner values that only step down.
+
 ## Resting before espresso
 
 Each plan has a `rest` section: how many days the beans need after roasting before they're

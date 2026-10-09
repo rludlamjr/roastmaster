@@ -63,6 +63,38 @@
     "max_days": 16,
     "note": "Medium roast degasses faster than a light one. Chocolate and malt are fullest around a week; past ~2.5 weeks it flattens."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 72,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 62,
+      "air": 40
+    },
+    {
+      "bt_c": 168,
+      "burner": 52,
+      "air": 50
+    },
+    {
+      "bt_c": 178,
+      "burner": 46
+    },
+    {
+      "at": "fc",
+      "burner": 42,
+      "air": 55
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 38
+    }
+  ],
   "history": [
     {
       "version": 1,

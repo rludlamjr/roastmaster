@@ -13,15 +13,15 @@
   "goal": "Light roast for espresso: plum and wine-like acidity over dark chocolate",
   "rationale": "Same Arokara cooperative and varieties as the Mile High A, which cracked at 187.3 C at 7:18 on this roaster, so FC is planned at 187 C. AA beans are larger, so the charge is a little gentler (188 C) to heat them through evenly without tipping. The long 36-hour fermentation gives the plum and wine notes that a light roast keeps. Sweetness is rated low (3/7), so for espresso development is a touch longer than the Mile High: ~10.5 C after first crack, DTR ~19%. If shots are sour, add 10-15 s of development.",
   "plan": {
-    "preheat_sv_c": 188,
-    "charge_bt_c": 188,
-    "tp_s": 38,
-    "tp_bt_c": 113,
-    "peak_s": 46,
-    "dry_end_s": 210,
-    "fc_s": 440,
-    "fc_bt_c": 187,
-    "drop_s": 545,
+    "preheat_sv_c": 188.0,
+    "charge_bt_c": 188.0,
+    "tp_s": 38.0,
+    "tp_bt_c": 113.0,
+    "peak_s": 46.0,
+    "dry_end_s": 210.0,
+    "fc_s": 440.0,
+    "fc_bt_c": 187.0,
+    "drop_s": 545.0,
     "drop_bt_c": 197.5,
     "dev_ror_ratio": 0.5
   },
@@ -59,6 +59,38 @@
     "max_days": 21,
     "note": "Light washed PNG: give it at least 8 days. The plum, wine and dark chocolate come together around day 12."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 72,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 62,
+      "air": 40
+    },
+    {
+      "bt_c": 167,
+      "burner": 52,
+      "air": 45
+    },
+    {
+      "bt_c": 177,
+      "burner": 46
+    },
+    {
+      "at": "fc",
+      "burner": 41,
+      "air": 50
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 36
+    }
+  ],
   "history": [
     {
       "version": 1,

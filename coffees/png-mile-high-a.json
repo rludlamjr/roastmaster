@@ -59,6 +59,38 @@
     "max_days": 21,
     "note": "Light washed coffee from 1,600 m: give it at least a week. Berry and citrus are clearest from about day 12."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 73,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 63,
+      "air": 40
+    },
+    {
+      "bt_c": 168,
+      "burner": 53,
+      "air": 45
+    },
+    {
+      "bt_c": 178,
+      "burner": 46
+    },
+    {
+      "at": "fc",
+      "burner": 41,
+      "air": 50
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 36
+    }
+  ],
   "history": [
     {
       "version": 1,

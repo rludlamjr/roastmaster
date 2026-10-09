@@ -25,7 +25,7 @@ import pygame
 
 from roastmaster.config import FPS, SCREEN_HEIGHT, SCREEN_WIDTH, WINDOW_TITLE
 from roastmaster.display.renderer import Renderer
-from roastmaster.display.units import c_to_f, f_to_c
+from roastmaster.display.units import c_to_f, f_to_c, f_to_c_delta
 from roastmaster.engine.analysis import (
     DEFAULT_TARGETS,
     PlanTargets,
@@ -33,6 +33,12 @@ from roastmaster.engine.analysis import (
     analyze_roast,
 )
 from roastmaster.engine.events import EventManager, EventType
+from roastmaster.engine.guidance import (
+    Guidance,
+    GuidanceTracker,
+    parse_controls,
+    plan_ror_by_bt,
+)
 from roastmaster.engine.pid import PIDController
 from roastmaster.engine.roast import RoastPhase, RoastStateMachine
 from roastmaster.engine.ror import RoRCalculator
@@ -116,6 +122,9 @@ class RoastSession:
         # Selected coffee plan (carries over between roasts like the coffee name)
         self.coffee: Coffee | None = None
         self.plan_targets: PlanTargets | None = None
+        # Live burner/air guidance for the selected plan (None if it has no controls)
+        self.guide_tracker: GuidanceTracker | None = None
+        self.guidance: Guidance | None = None
         self.fsm = RoastStateMachine()
         self.events = EventManager()
         self.ror = RoRCalculator()
@@ -157,6 +166,9 @@ class RoastSession:
         self.emailed = False
         self.analysis = None
         self.meta["notes"] = ""
+        if self.guide_tracker is not None:
+            self.guide_tracker.reset()
+        self.guidance = None
 
     @property
     def charged(self) -> bool:
@@ -180,9 +192,39 @@ class RoastSession:
         """Roast against this coffee's plan (None = no plan / blank)."""
         self.coffee = coffee
         self.plan_targets = coffee.plan_targets() if coffee else None
+        self.guide_tracker = None
+        if coffee is not None and coffee.controls:
+            try:
+                self.guide_tracker = GuidanceTracker(
+                    parse_controls(coffee.controls),
+                    plan_ror_by_bt(coffee.curve(), coffee.plan.tp_s),
+                    coffee.plan.fc_bt_c,
+                )
+            except ValueError as exc:
+                logger.warning("Plan %s has unusable controls: %s", coffee.id, exc)
+        self.update_guidance()
         self.meta["coffee"] = coffee.name if coffee else ""
         if self.charged:
             self.update_analysis()
+
+    def update_guidance(self) -> Guidance | None:
+        """Where the burner/air/drum should be right now for the selected plan."""
+        if self.guide_tracker is None:
+            self.guidance = None
+            return None
+        a = self.analysis if self.charged else None
+        charge = self.events.get_event(EventType.CHARGE)
+        t = self.fsm.elapsed - charge.elapsed if charge is not None else 0.0
+        self.guidance = self.guide_tracker.update(
+            charged=self.charged,
+            dropped=self.dropped,
+            t=t,
+            bt_c=f_to_c(self.bt) if self.bt is not None else None,
+            ror_c=f_to_c_delta(a.ror_end_f) if a is not None and a.ror_end_f is not None else None,
+            tp_passed=a is not None and a.turning_point is not None,
+            fc_t=a.first_crack.time_s if a is not None and a.first_crack is not None else None,
+        )
+        return self.guidance
 
     def update_analysis(self) -> RoastAnalysis:
         self.analysis = analyze_roast(
@@ -611,6 +653,7 @@ def _record_sample(
     )
     if session.charged:
         session.update_analysis()
+    session.update_guidance()
 
 
 def _is_valid_reading(bt: float, et: float) -> bool:
@@ -793,6 +836,7 @@ def _build_render_data(
             session.coffee.label if session.coffee else str(session.meta.get("coffee", ""))
         ),
         "coffee_plan": session.coffee,
+        "guidance": session.guidance,
     }
 
 

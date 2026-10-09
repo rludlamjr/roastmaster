@@ -67,6 +67,33 @@
     "max_days": 12,
     "note": "Dark roasts degas and stale fast: start after 3 days, best around day 5, and use within about two weeks before oils and bitterness build."
   },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 72,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 62,
+      "air": 40
+    },
+    {
+      "bt_c": 163,
+      "burner": 54,
+      "air": 50
+    },
+    {
+      "bt_c": 173,
+      "burner": 50,
+      "air": 60
+    },
+    {
+      "at": "fc",
+      "burner": 46
+    }
+  ],
   "history": [
     {
       "version": 1,
