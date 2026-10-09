@@ -537,3 +537,34 @@ class TestFullRoast:
                 f"ET ({sim.env_temp_true:.1f}°F) must not fall below "
                 f"BT ({sim.bean_temp_true:.1f}°F) at step {step}"
             )
+
+
+class TestBeansLoaded:
+    """CHARGE loads cold beans: a realistic dip and turning point, then a steady rise."""
+
+    def test_charge_dip_and_turning_point(self):
+        from roastmaster.display.units import f_to_c
+
+        sim = RoasterSimulator(70.0)
+        sim.set_drum(90)
+        sim.set_fan(30)
+        sim.set_heater(100)
+        for _ in range(600):
+            sim.update(1.0)
+        sim.set_heater(70)
+        sim.charge_beans()
+        bts = []
+        for _ in range(300):
+            sim.update(1.0)
+            bts.append(f_to_c(sim._bt))
+        tp = min(range(len(bts)), key=lambda i: bts[i])
+        assert 20 <= tp <= 60
+        assert 95 <= bts[tp] <= 125
+        assert bts[-1] > 150  # past dry end within 5 minutes
+
+    def test_drop_restores_drum_physics(self):
+        sim = RoasterSimulator(70.0)
+        sim.charge_beans()
+        assert sim.loaded
+        sim.drop_beans()
+        assert not sim.loaded

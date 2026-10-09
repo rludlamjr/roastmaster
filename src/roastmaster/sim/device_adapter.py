@@ -85,14 +85,17 @@ class SimulatedRoasterDevice:
     :data:`_MAX_SUBSTEP` seconds to keep the Euler integrator stable.
     """
 
-    def __init__(self, ambient_temp_f: float = 70.0) -> None:
+    def __init__(self, ambient_temp_f: float = 70.0, time_scale: float = 1.0) -> None:
         """Initialise the adapter and its underlying simulator.
 
         Args:
             ambient_temp_f: Starting and ambient room temperature in Fahrenheit.
                 Defaults to 70.0°F (a typical indoor environment).
+            time_scale: Simulated seconds per real second (e.g. 4 = a 9-minute
+                roast in ~2:15). The app's clock must be scaled the same way.
         """
         self._sim = RoasterSimulator(ambient_temp_f)
+        self._time_scale = max(0.1, float(time_scale))
         self._connected: bool = False
         self._last_update: float = time.time()
         self._faults: list[FaultConfig] = []
@@ -184,7 +187,7 @@ class SimulatedRoasterDevice:
             raise TimeoutError("Simulated read timeout")
 
         now = time.time()
-        dt = now - self._last_update
+        dt = (now - self._last_update) * self._time_scale
         # Sub-step to keep the Euler integrator stable for large dt values.
         while dt > 0:
             step = min(dt, _MAX_SUBSTEP)
@@ -269,8 +272,11 @@ class SimulatedRoasterDevice:
         return None
 
     def mark_event(self, code: int) -> None:
-        """No-op for the simulator."""
-        return None
+        """CHARGE (1) loads beans into the simulated drum; DROP (8) empties it."""
+        if code == 1:
+            self._sim.charge_beans()
+        elif code == 8:
+            self._sim.drop_beans()
 
     def __repr__(self) -> str:
         status = "connected" if self._connected else "disconnected"

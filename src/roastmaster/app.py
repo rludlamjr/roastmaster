@@ -1174,6 +1174,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Skip device selection and run in simulator mode",
     )
     parser.add_argument(
+        "--sim-speed",
+        type=float,
+        default=1.0,
+        help="Simulator only: run the roast this many times faster (e.g. 4)",
+    )
+    parser.add_argument(
         "--no-title",
         action="store_true",
         help="Skip the title screen (useful for headless testing)",
@@ -1387,7 +1393,7 @@ def main(argv: list[str] | None = None) -> None:
             logger.info("Using Kaleido device on %s", serial_port)
         device_label = Path(serial_port).name or serial_port
     else:
-        device = SimulatedRoasterDevice()
+        device = SimulatedRoasterDevice(time_scale=args.sim_speed)
         logger.info("Using simulated device")
     connected = False
     while not connected:
@@ -1403,7 +1409,7 @@ def main(argv: list[str] | None = None) -> None:
                 if action == "retry":
                     continue
                 # Fall back to simulator
-                device = SimulatedRoasterDevice()
+                device = SimulatedRoasterDevice(time_scale=args.sim_speed)
                 device_label = "SIM"
                 serial_port = None
                 device.connect()
@@ -1457,6 +1463,10 @@ def main(argv: list[str] | None = None) -> None:
         ids = [c.id if c else None for c in picker_coffees]
         renderer.show_picker(labels, ids.index(current) if current in ids else 0)
 
+    # The simulator can run faster than real time; the app's clock must match it
+    clock_scale = max(0.1, args.sim_speed) if isinstance(device, SimulatedRoasterDevice) else 1.0
+    if clock_scale != 1.0:
+        logger.info("Simulator running at %.1fx speed", clock_scale)
     start_ticks = pygame.time.get_ticks()
     last_sample_s = -1
     message = ""
@@ -1481,7 +1491,7 @@ def main(argv: list[str] | None = None) -> None:
     try:
         while running:
             # 1. Update elapsed time
-            elapsed_ms = pygame.time.get_ticks() - start_ticks
+            elapsed_ms = (pygame.time.get_ticks() - start_ticks) * clock_scale
             session.fsm.elapsed = elapsed_ms / 1000.0
 
             # 2. Process input events

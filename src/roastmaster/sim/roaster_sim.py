@@ -58,6 +58,28 @@ _FIRST_CRACK_LOW_F = 385.0
 _FIRST_CRACK_HIGH_F = 400.0
 _FIRST_CRACK_ABSORPTION = 0.08  # fraction of net BT delta absorbed
 
+# ---------------------------------------------------------------------------
+# Beans loaded (between CHARGE and DROP). Tuned so a roast that follows a
+# plan's burner schedule looks like the real Kaleido M1 at 170 g: turning
+# point ~0:38 at ~109 C, a slowly falling RoR, first crack ~7:30-7:45.
+# ---------------------------------------------------------------------------
+
+# Beans approach an equilibrium set by the burner with this (long) time constant.
+_LOADED_BEAN_TAU = 600.0
+# Bean equilibrium at 100% burner (°F, ~660 C): far above roast temperatures,
+# so the rise is steady rather than stalling short of first crack.
+_LOADED_MAX_EQ_F = 1220.0
+# Air cooling of the bean equilibrium (°F per % fan).
+_LOADED_AIR_COOL_PER_PCT = 0.18
+# The BT probe sits in a mix of beans and hot drum air, and lags behind it.
+_LOADED_PROBE_BEAN_WEIGHT = 0.6
+_LOADED_PROBE_TAU = 15.0
+# Drum air (ET) while loaded: about 150 C + 0.8 C per % burner, never below beans + 8 C.
+_LOADED_ET_BASE_F = 302.0
+_LOADED_ET_PER_PCT_F = 1.44
+_LOADED_ET_OVER_BEAN_F = 14.4
+_LOADED_ET_TAU = 30.0
+
 # Sensor noise standard deviation (°F).
 _BT_NOISE_STD = 0.3
 _ET_NOISE_STD = 0.5
@@ -95,6 +117,11 @@ class RoasterSimulator:
         self._bt: float = ambient_temp_f
         self._et: float = ambient_temp_f
 
+        # Beans in the drum (between charge and drop) and their true temperature;
+        # while loaded, _bt is the probe reading.
+        self._loaded = False
+        self._bean: float = ambient_temp_f
+
         # Control inputs (0-100).
         self._heater: int = 0
         self._drum: int = 0
@@ -103,6 +130,23 @@ class RoasterSimulator:
         # Seed the PRNG for reproducible noise if desired; by default use
         # system entropy so each run is different.
         self._rng = random.Random()
+
+    # ------------------------------------------------------------------
+    # Beans in / out
+    # ------------------------------------------------------------------
+
+    def charge_beans(self) -> None:
+        """Drop room-temperature beans into the drum (CHARGE)."""
+        self._loaded = True
+        self._bean = self._ambient
+
+    def drop_beans(self) -> None:
+        """Empty the drum (DROP): the probe goes back to reading the drum."""
+        self._loaded = False
+
+    @property
+    def loaded(self) -> bool:
+        return self._loaded
 
     # ------------------------------------------------------------------
     # Control setters
@@ -162,6 +206,9 @@ class RoasterSimulator:
             dt: Time step in seconds. Should be positive.
         """
         if dt <= 0:
+            return
+        if self._loaded:
+            self._update_loaded(dt)
             return
 
         heater_pct = self._heater / 100.0   # 0.0 – 1.0
@@ -230,6 +277,21 @@ class RoasterSimulator:
         # ----------------------------------------------------------------
         # 8. Safety clamps (should not be reached in normal use)
         # ----------------------------------------------------------------
+        self._bt = max(self._ambient - 5.0, min(self._bt, 599.0))
+        self._et = max(self._ambient - 5.0, min(self._et, 599.0))
+
+    def _update_loaded(self, dt: float) -> None:
+        """Physics with beans in the drum: slow bean mass, lagging probe."""
+        heater_pct = self._heater / 100.0
+        bean_eq = (self._ambient + heater_pct * (_LOADED_MAX_EQ_F - self._ambient)
+                   - self._fan * _LOADED_AIR_COOL_PER_PCT)
+        self._bean += (bean_eq - self._bean) / _LOADED_BEAN_TAU * dt
+        et_target = max(_LOADED_ET_BASE_F + self._heater * _LOADED_ET_PER_PCT_F,
+                        self._bean + _LOADED_ET_OVER_BEAN_F)
+        self._et += (et_target - self._et) / _LOADED_ET_TAU * dt
+        probe_target = (_LOADED_PROBE_BEAN_WEIGHT * self._bean
+                        + (1 - _LOADED_PROBE_BEAN_WEIGHT) * self._et)
+        self._bt += (probe_target - self._bt) / _LOADED_PROBE_TAU * dt
         self._bt = max(self._ambient - 5.0, min(self._bt, 599.0))
         self._et = max(self._ambient - 5.0, min(self._et, 599.0))
 
