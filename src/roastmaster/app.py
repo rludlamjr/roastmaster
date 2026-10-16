@@ -32,7 +32,7 @@ from roastmaster.engine.analysis import (
     RoastAnalysis,
     analyze_roast,
 )
-from roastmaster.engine.events import EventManager, EventType
+from roastmaster.engine.events import EventManager, EventType, find_charge_drop
 from roastmaster.engine.guidance import (
     Guidance,
     GuidanceTracker,
@@ -110,6 +110,9 @@ class ReadOnlyDevice:
 
 
 DEFAULT_BATCH_G = 170.0
+
+# Guidance starts its BT-keyed steps by this time even if no turning point was found
+_GUIDE_NO_TP_AFTER_S = 90.0
 
 
 class RoastSession:
@@ -215,13 +218,20 @@ class RoastSession:
         a = self.analysis if self.charged else None
         charge = self.events.get_event(EventType.CHARGE)
         t = self.fsm.elapsed - charge.elapsed if charge is not None else 0.0
+        ror_c = f_to_c_delta(a.ror_end_f) if a is not None and a.ror_end_f is not None else None
+        # Normally BT steps start after the turning point. If none was found (odd
+        # charge), don't leave the guidance stuck on the charge settings: once the
+        # roast is clearly rising, the temperature-keyed steps take over.
+        tp_passed = a is not None and (
+            a.turning_point is not None or (t >= _GUIDE_NO_TP_AFTER_S and (ror_c or 0) > 0)
+        )
         self.guidance = self.guide_tracker.update(
             charged=self.charged,
             dropped=self.dropped,
             t=t,
             bt_c=f_to_c(self.bt) if self.bt is not None else None,
-            ror_c=f_to_c_delta(a.ror_end_f) if a is not None and a.ror_end_f is not None else None,
-            tp_passed=a is not None and a.turning_point is not None,
+            ror_c=ror_c,
+            tp_passed=tp_passed,
             fc_t=a.first_crack.time_s if a is not None and a.first_crack is not None else None,
         )
         return self.guidance
@@ -384,21 +394,40 @@ def _handle_input(
         return "COOL OFF"
 
     if event == InputEvent.CHARGE:
+        charge_t, charge_bt = elapsed, session.bt
+        late = None
         # Force FSM to CHARGE regardless of current phase.
         if phase in (RoastPhase.IDLE, RoastPhase.PREHEAT):
             if phase == RoastPhase.IDLE:
                 session.fsm.start_preheat(elapsed)
-            session.fsm.charge(elapsed)
+            # Pressed after the beans went in? Back-date CHARGE to when BT plunged,
+            # so the turning point, dry end and plan timing line up.
+            late = find_charge_drop([(s.elapsed, s.bt) for s in session.samples])
+            if late is not None:
+                charge_t, charge_bt = late
+                logger.info("CHARGE pressed %.0f s late; back-dated to the BT drop",
+                            elapsed - charge_t)
+            session.fsm.charge(charge_t)
+            session.fsm.elapsed = elapsed
         elif phase != RoastPhase.CHARGE:
             # Already past CHARGE — just mark the event, don't re-transition.
             pass
-        if session.bt is not None:
-            session.events.mark_event(EventType.CHARGE, elapsed, session.bt)
+        if charge_bt is not None:
+            session.events.mark_event(EventType.CHARGE, charge_t, charge_bt)
+        if late is not None:
+            # Replay the readings since the real charge through turning-point detection
+            for s in session.samples:
+                if s.elapsed > charge_t and session.events.update_bt(s.elapsed, s.bt):
+                    session.fsm.begin_roasting(s.elapsed)
+                    session.fsm.elapsed = elapsed
+                    break
         session.start_roast_identity()
         try:
             device.mark_event(1)
         except (ConnectionError, OSError, RuntimeError) as exc:
             logger.warning("EV CHARGE error: %s", exc)
+        if late is not None and elapsed - charge_t >= 5:
+            return f"CHARGE MARKED {elapsed - charge_t:.0f}S EARLIER"
         return "CHARGE MARKED"
 
     if event == InputEvent.FIRST_CRACK:
@@ -1601,7 +1630,7 @@ def main(argv: list[str] | None = None) -> None:
                 elif msg == "BROWSE":
                     open_picker()  # encoder push on the graph: choose the coffee
                     msg = None
-                if msg == "CHARGE MARKED":
+                if msg and msg.startswith("CHARGE MARKED"):
                     renderer.set_charge_time(session.fsm.roast_start_time)
                 if msg:
                     message = msg

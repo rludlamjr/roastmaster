@@ -120,3 +120,39 @@ class EventManager:
         self._tp_detected = False
         self._tp_candidate = None
         self._rising_count = 0
+
+
+# A late CHARGE press: cold beans make BT plunge (several degrees per second),
+# which a preheat drifting up or down never does. The plunge must also have
+# dropped BT by at least _LATE_CHARGE_MIN_DROP_F by the time CHARGE is pressed.
+_LATE_CHARGE_MIN_DROP_F = 20.0
+_LATE_CHARGE_PLUNGE_F_PER_S = 3.0  # ~1.7 C/s; charging is ~4 C/s, preheat drift ~0.05
+_LATE_CHARGE_WINDOW_S = 120.0
+
+
+def find_charge_drop(
+    history: list[tuple[float, float]],
+    *,
+    min_drop_f: float = _LATE_CHARGE_MIN_DROP_F,
+    plunge_f_per_s: float = _LATE_CHARGE_PLUNGE_F_PER_S,
+    window_s: float = _LATE_CHARGE_WINDOW_S,
+) -> tuple[float, float] | None:
+    """When CHARGE is pressed after the beans went in, find when they really did.
+
+    ``history`` is (elapsed, bt_f) up to now. Looks in the last ``window_s``
+    seconds for the start of a charge plunge (BT falling faster than
+    ``plunge_f_per_s``) after which BT ended up at least ``min_drop_f`` lower.
+    Returns the (elapsed, bt_f) of the reading just before the plunge, or None
+    when CHARGE was pressed on time.
+    """
+    if len(history) < 3:
+        return None
+    now_t, now_bt = history[-1]
+    recent = [p for p in history if p[0] >= now_t - window_s]
+    for (t0, bt0), (t1, bt1) in zip(recent, recent[1:], strict=False):
+        dt = t1 - t0
+        if dt <= 0:
+            continue
+        if (bt0 - bt1) / dt >= plunge_f_per_s and bt0 - now_bt >= min_drop_f:
+            return t0, bt0
+    return None

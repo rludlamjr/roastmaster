@@ -272,3 +272,34 @@ def test_bt_creeping_up_just_after_charge_is_not_a_turning_point():
     assert len(detected) == 1
     assert detected[0].elapsed > 10.0
     assert detected[0].temperature < 210.0
+
+
+# ---------------------------------------------------------------------------
+# Late CHARGE press
+# ---------------------------------------------------------------------------
+
+from roastmaster.engine.events import find_charge_drop  # noqa: E402
+
+
+def _preheat(n=60, start=375.0, drift=-0.05):
+    return [(float(i), start + drift * i) for i in range(n)]
+
+
+def test_on_time_charge_is_not_backdated():
+    assert find_charge_drop(_preheat()) is None
+    assert find_charge_drop(_preheat(drift=0.2)) is None  # still climbing
+
+
+def test_late_charge_finds_the_plunge():
+    hist = _preheat(60)                     # steady ~372-375 F
+    plunge_from = hist[-1]
+    for i, bt in enumerate([350.0, 310.0, 280.0, 260.0, 245.0, 236.0, 230.0, 226.0]):
+        hist.append((60.0 + i + 1, bt))     # beans in: several degrees per second
+    for i in range(15):
+        hist.append((69.0 + i, 225.0 - 0.3 * i))  # CHARGE pressed ~23 s later
+    assert find_charge_drop(hist) == plunge_from
+
+
+def test_small_dip_is_not_a_late_charge():
+    hist = _preheat(60) + [(60.0, 368.0), (61.0, 362.0), (62.0, 361.0)]  # only ~13 F
+    assert find_charge_drop(hist) is None

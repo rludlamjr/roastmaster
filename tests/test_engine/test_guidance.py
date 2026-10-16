@@ -147,3 +147,48 @@ def test_session_guidance_follows_selected_plan():
     assert (session.guidance.burner, session.guidance.air, session.guidance.drum) == (70, 30, 90)
     session.select_coffee(None)
     assert session.guidance is None
+
+
+def test_session_charge_backdates_and_guidance_does_not_stick():
+    from unittest import mock
+
+    from roastmaster.app import RoastSession, _handle_input
+    from roastmaster.engine.events import EventType
+    from roastmaster.hal.base import InputEvent
+    from roastmaster.profiles.schema import ProfileSample
+
+    session = RoastSession()
+    session.select_coffee(CoffeeLibrary("coffees").get("honduras-18-rabbit-yellow-honey"))
+    # Preheat, then beans in at t=60, CHARGE pressed at t=83
+    temps = [375.0] * 60 + [350.0, 310.0, 280.0, 260.0, 245.0, 236.0, 230.0, 226.0]
+    temps += [225.0 - 0.2 * i for i in range(16)]
+    for i, bt in enumerate(temps):
+        session.samples.append(ProfileSample(elapsed=float(i), bt=bt, et=380.0))
+    session.bt = temps[-1]
+    session.fsm.elapsed = float(len(temps) - 1)
+    msg = _handle_input(InputEvent.CHARGE, session, mock.Mock(), mock.Mock())
+    charge = session.events.get_event(EventType.CHARGE)
+    assert charge.elapsed == 59.0 and charge.temperature == 375.0
+    assert msg == "CHARGE MARKED 24S EARLIER"
+    assert session.fsm.roast_start_time == 59.0
+
+
+def test_guidance_steps_start_even_without_a_turning_point():
+    from roastmaster.app import RoastSession
+    from roastmaster.display.units import c_to_f
+    from roastmaster.engine.events import EventType
+    from roastmaster.profiles.schema import ProfileSample
+
+    session = RoastSession()
+    session.select_coffee(CoffeeLibrary("coffees").get("honduras-18-rabbit-yellow-honey"))
+    # No dip at all: BT just climbs from 140 C (e.g. charge never registered a dip)
+    for i in range(121):
+        bt = c_to_f(140 + i * 0.15)
+        session.samples.append(ProfileSample(elapsed=float(i), bt=bt, et=bt + 20))
+    session.events.mark_event(EventType.CHARGE, 0.0, session.samples[0].bt)
+    session.bt = session.samples[-1].bt          # ~158 C, past the 150 C step
+    session.fsm.elapsed = 120.0
+    session.update_analysis()
+    assert session.analysis.turning_point is None
+    session.update_guidance()
+    assert session.guidance.scheduled_burner == 60  # dry-end step reached, not stuck at 70

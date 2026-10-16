@@ -164,3 +164,27 @@ class TestBogusTurningPoint:
         # Charge BT is above the dry-end threshold; that must not count as dry end
         a = make_roast(charge_bt_c=200).analyze()
         assert a.dry_end.time_s > a.turning_point.time_s + 60
+
+
+class TestLateCharge:
+    """CHARGE pressed after most of the dip: the TP must still be found."""
+
+    def _late_roast(self, late_s=23):
+        p = make_roast()
+        charge = p.events[0]
+        moved = charge.elapsed + late_s
+        bt = min(p.samples, key=lambda s: abs(s.elapsed - moved)).bt
+        p.events[0] = ProfileEvent("CHARGE", moved, bt)
+        return p
+
+    def test_turning_point_and_dry_end_found(self):
+        a = self._late_roast().analyze()
+        assert a.turning_point is not None
+        assert a.dry_end is not None and f_to_c(a.dry_end.bt_f) == pytest.approx(150, abs=1)
+
+    def test_no_turning_point_before_bt_has_risen(self):
+        p = self._late_roast()
+        t0 = p.events[0].elapsed
+        p.samples = [s for s in p.samples if s.elapsed <= t0 + 50]  # still near the bottom
+        p.events = p.events[:1]
+        assert p.analyze().turning_point is None

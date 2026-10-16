@@ -91,6 +91,10 @@ _ROR_SPAN_S = 30.0
 # A turning point is only accepted inside the charge dip
 _TP_MIN_S = 10.0
 _TP_MIN_DIP_F = 15.0
+# ...or, when CHARGE was pressed late, at the early low point once BT has risen
+# this far above it (~10 C)
+_TP_LATE_MIN_S = 5.0
+_TP_RISE_F = 18.0
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +409,11 @@ def analyze_roast(
             candidate = EventPoint(t_min, bt_min)
             # Only trust it once BT has clearly started rising again
             if points[-1][1] > bt_min + 2.0 and plausible_tp(candidate):
+                tp = candidate
+            # CHARGE pressed late (most of the dip happened before it): the low
+            # point is still a turning point once BT has clearly climbed past it.
+            elif (candidate.time_s >= _TP_LATE_MIN_S
+                  and max(bt for t, bt in points if t >= t_min) >= bt_min + _TP_RISE_F):
                 tp = candidate
     result.turning_point = tp
 
