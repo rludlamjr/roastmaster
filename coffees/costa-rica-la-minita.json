@@ -1,0 +1,105 @@
+{
+  "id": "costa-rica-la-minita",
+  "name": "Costa Rica La Minita Estate, Tarrazu",
+  "short": "LA MINITA",
+  "status": "active",
+  "version": 1,
+  "source_url": "https://coffeebeancorral.com/products/costa-rica-laminita-tarrazu",
+  "origin": "Costa Rica, Tarrazu (La Minita Estate)",
+  "process": "Washed",
+  "altitude_m": 1330,
+  "variety": "Caturra",
+  "vendor_notes": "Brilliant acidity, medium body, sweet orange citrus, caramelized sugar and fine chocolate; impeccably balanced with a long finish. Brightness 5/7, body 4/7, sweetness 5/7, balance 6/7. Grown 1,143-1,524 m. Rainforest Alliance.",
+  "goal": "Light-medium roast: orange brightness over caramel and chocolate",
+  "rationale": "A clean, well-sorted washed Caturra from Tarrazu (1,143-1,524 m): medium-high density that takes a normal charge (188 C) and develops evenly. Its appeal is balance, bright orange acidity over caramelized sugar and chocolate, so it sits between the light and medium plans: ~12 C after first crack, DTR ~20%. That keeps the orange while building the caramel and chocolate for espresso. FC 188 C follows the washed Central American coffees on this roaster.",
+  "plan": {
+    "preheat_sv_c": 188,
+    "charge_bt_c": 188,
+    "tp_s": 36,
+    "tp_bt_c": 110,
+    "peak_s": 44,
+    "dry_end_s": 215,
+    "fc_s": 435,
+    "fc_bt_c": 188,
+    "drop_s": 545,
+    "drop_bt_c": 200,
+    "dev_ror_ratio": 0.47
+  },
+  "targets": {
+    "total_time_s": [
+      520,
+      590
+    ],
+    "dtr_pct": [
+      18,
+      23
+    ],
+    "dev_delta_c": [
+      10,
+      14
+    ],
+    "dev_time_s": [
+      95,
+      130
+    ],
+    "weight_loss_pct": [
+      13,
+      15.5
+    ]
+  },
+  "steps": [
+    "Preheat to 188 C, then hold steady 10+ min (BT/ET flat).",
+    "Charge 170 g at BT 188. Burner 72%, air 30, drum 90.",
+    "TP ~0:36 near 110 C. RoR is highest here, then falls.",
+    "Dry end 150 C (~3:35): burner 62%, air 40.",
+    "At 168 C (~5:12): burner 52%, air 45.",
+    "At 178 C (~6:11): burner 46%. RoR ~10 and falling.",
+    "FC ~7:15 at ~188 C: burner 41%, air 55. Then 37%.",
+    "Drop ~9:05 at ~200 C (12 C after FC)."
+  ],
+  "rest": {
+    "min_days": 6,
+    "best_days": 9,
+    "max_days": 18,
+    "note": "Light-medium washed coffee: give it about a week. Orange and caramel are clearest from around day 9."
+  },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 72,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 62,
+      "air": 40
+    },
+    {
+      "bt_c": 168,
+      "burner": 52,
+      "air": 45
+    },
+    {
+      "bt_c": 178,
+      "burner": 46
+    },
+    {
+      "at": "fc",
+      "burner": 41,
+      "air": 55
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 37
+    }
+  ],
+  "history": [
+    {
+      "version": 1,
+      "date": "2026-10-15",
+      "note": "Initial light-to-medium plan from the Coffee Bean Corral page, using the measured opening on this roaster (TP ~0:36 at ~110 C) and FC 187-189 C from the Honduras and PNG roasts."
+    }
+  ]
+}
