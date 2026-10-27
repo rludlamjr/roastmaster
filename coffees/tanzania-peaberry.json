@@ -1,0 +1,105 @@
+{
+  "id": "tanzania-peaberry",
+  "name": "Tanzania Peaberry, Kilimanjaro and Arusha",
+  "short": "TANZANIA PB",
+  "status": "active",
+  "version": 1,
+  "source_url": "https://coffeebeancorral.com/products/tanzania-peaberry",
+  "origin": "Tanzania, Kilimanjaro and Arusha regions (smallholder blend)",
+  "process": "Fully washed: hand-pulped, bucket-fermented, dried on raised beds",
+  "altitude_m": 1400,
+  "variety": "Bourbon, Kent (typical for the region)",
+  "vendor_notes": "Juicy, smooth medium-to-full body with crisp, bright, tangy winey acidity; fruity and winey. Brightness 6/7, body 5/7, sweetness 7/7. Grown 1,100-1,700 m.",
+  "goal": "Light roast for espresso: tangy, winey fruit with juicy sweetness",
+  "rationale": "Washed East African peaberry: small, round, dense beans that tumble evenly and take heat efficiently, so they get a firm but slightly gentler charge than the Limu (190 C vs 195 C) to avoid tipping the rounded surface. The lot's appeal is bright, winey acidity and a very high sweetness rating (7/7), so a light roast can stay short after first crack without going sour: ~9.5 C after FC, DTR ~18%. FC 188 C follows the washed coffees on this roaster; peaberries often crack early and loudly, so mark FC at the first clear pops. If shots are sour or thin, add 10-15 s of development first.",
+  "plan": {
+    "preheat_sv_c": 190.0,
+    "charge_bt_c": 190.0,
+    "tp_s": 36.0,
+    "tp_bt_c": 111.0,
+    "peak_s": 44.0,
+    "dry_end_s": 210.0,
+    "fc_s": 435.0,
+    "fc_bt_c": 188.0,
+    "drop_s": 530.0,
+    "drop_bt_c": 197.5,
+    "dev_ror_ratio": 0.5
+  },
+  "targets": {
+    "total_time_s": [
+      495,
+      570
+    ],
+    "dtr_pct": [
+      16,
+      20
+    ],
+    "dev_delta_c": [
+      8,
+      12
+    ],
+    "dev_time_s": [
+      80,
+      115
+    ],
+    "weight_loss_pct": [
+      12,
+      14
+    ]
+  },
+  "steps": [
+    "Preheat to 190 C, then hold steady 10+ min (BT/ET flat).",
+    "Charge 170 g at BT 190. Burner 73%, air 30, drum 90.",
+    "TP ~0:36 near 111 C. RoR is highest here, then falls.",
+    "Dry end 150 C (~3:30): burner 63%, air 40.",
+    "At 167 C (~5:00): burner 53%, air 45.",
+    "At 178 C (~6:06): burner 46%. RoR ~10 and falling.",
+    "FC ~7:15 at ~188 C: burner 41%, air 50. Then 36%.",
+    "Drop ~8:50 at ~197.5 C (9.5 C after FC)."
+  ],
+  "rest": {
+    "min_days": 8,
+    "best_days": 12,
+    "max_days": 21,
+    "note": "Light, dense washed peaberry degasses slowly. Give it at least 8 days; the winey fruit and sweetness come together around day 12."
+  },
+  "controls": [
+    {
+      "at": "charge",
+      "burner": 73,
+      "air": 30,
+      "drum": 90
+    },
+    {
+      "bt_c": 150,
+      "burner": 63,
+      "air": 40
+    },
+    {
+      "bt_c": 167,
+      "burner": 53,
+      "air": 45
+    },
+    {
+      "bt_c": 178,
+      "burner": 46
+    },
+    {
+      "at": "fc",
+      "burner": 41,
+      "air": 50
+    },
+    {
+      "at": "fc",
+      "after_s": 30,
+      "burner": 36
+    }
+  ],
+  "history": [
+    {
+      "version": 1,
+      "date": "2026-10-27",
+      "note": "Initial light-roast espresso plan from the Coffee Bean Corral listing, using the measured opening on this roaster (TP ~0:36 at ~110 C) and FC 187-189 C from the washed coffees roasted so far."
+    }
+  ]
+}
