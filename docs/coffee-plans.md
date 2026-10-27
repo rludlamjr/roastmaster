@@ -120,6 +120,7 @@ fade) sooner.
 | Honduras 18 Rabbit | 7-18 | ~10 |
 | PNG Mile High A | 8-21 | ~12 |
 | PNG Arokara AA | 8-21 | ~12 |
+| Tanzania Peaberry | 8-21 | ~12 |
 | Costa Rica La Minita | 6-18 | ~9 |
 | Mexico La Laja honey | 5-16 | ~8 |
 | Peru Finca La Esperanza | 5-16 | ~8 |
@@ -144,6 +145,7 @@ fade) sooner.
 | Honduras 18 Rabbit yellow honey (light) | v3 | 185 °C | 0:36 @ 110 | 3:35 | 7:15 @ 188 | 8:55 @ 198.5 | 18.7% | 10.5 |
 | PNG Mile High A (washed, light) | v2 | 190 °C | 0:36 @ 112 | 3:25 | 7:20 @ 188 | 8:55 @ 197.5 | 17.8% | 9.5 |
 | PNG Arokara AA (washed, light, espresso) | v1 | 188 °C | 0:38 @ 113 | 3:30 | 7:20 @ 187 | 9:05 @ 197.5 | 19.3% | 10.5 |
+| Tanzania Peaberry (washed, light, espresso) | v1 | 190 °C | 0:36 @ 111 | 3:30 | 7:15 @ 188 | 8:50 @ 197.5 | 17.9% | 9.5 |
 | Costa Rica La Minita (washed, light-medium) | v1 | 188 °C | 0:36 @ 110 | 3:35 | 7:15 @ 188 | 9:05 @ 200 | 20.2% | 12 |
 | Mexico La Laja honey (light-medium) | v1 | 183 °C | 0:36 @ 108 | 3:40 | 7:20 @ 187 | 9:15 @ 199 | 20.7% | 12 |
 | Peru Finca La Esperanza (washed, medium) | v2 | 188 °C | 0:36 @ 108 | 3:45 | 7:15 @ 188 | 9:20 @ 203 | 22.3% | 15 |
